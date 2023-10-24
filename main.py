@@ -23,7 +23,8 @@ ALL_DEGREE_TYPE = ['power-law', 'exponential', 'normal', 'lognormal']
 METHOD = FIRST_ORDER_METHOD + SECOND_ORDER_METHOD + THIRD_ORDER_METHOD
 undirected_document = "./dataset/newUndirected"
 directed_document = './dataset/newDirected'
-output_file = 'directed_delta.txt'
+output_file = 'delta.txt'
+rewiring_file = 'rewiring.txt'
 all_rewires = ['non', 'zero', 'first', 'first_ass', 'first_dis', 'first_ass_constCC', 'first_dis_constCC', 'second', 'third', 'third_increaseCC', 'third_decreaseCC']
 artificial_output_file = './undirected_artificial_auc.txt'
 
@@ -404,7 +405,172 @@ def output(file_name, net_type, all_delta_sample=100000):
     f.write('\n')
 
 
-if __name__ == '__main__':
+def rewiring_output(file_name, net_type):
+  G = read_network(file_name, net_type)
+  rewiring = []
+  for method1 in METHOD:
+    for s in range(1, 10):
+      rand_number = s * 0.1
+      rewiring.append(str(round(link_prediction_system(G, 'rand', method1, rand_number),4)))
+
+  if net_type == 'undirected':
+    file_name = file_name[len(undirected_document)+1:]
+  else:
+    file_name = file_name[len(directed_document)+1:]
+  with open(net_type+rewiring_file, 'a') as f:
+    f.write('\t'.join([file_name] + rewiring))
+    f.write('\n')
+
+
+def rand_ER(g):
+  rewiring_num = max(10000, g.number_of_edges())
+  rewiring_index = 0
+  if nx.is_directed(g):
+    while rewiring_index < rewiring_num:
+      edge = ran.choice(list(g.edges()))
+      node1 = ran.choice(list(g.nodes()))
+      node2 = ran.choice(list(g.nodes()))
+      if node1 == node2 or g.has_edge(node1, node2):
+        continue
+      rewiring_index += 1
+      g.remove_edge(edge[0], edge[1])
+      g.add_edge(node1, node2)
+  else:
+    while rewiring_index < rewiring_num:
+      edge = ran.choice(list(g.edges()))
+      node1 = ran.choice(list(g.nodes()))
+      node2 = ran.choice(list(g.nodes()))
+      if node1 == node2 or g.has_edge(node1, node2) or g.has_edge(node2, node1):
+        continue
+      rewiring_index += 1
+      g.remove_edge(edge[0], edge[1])
+      g.add_edge(node1, node2)
+  return g
+
+
+def rand_deg(g):
+  out_degree2nodes = {}
+  rewiring_num = max(10000, g.number_of_edges())
+  rewiring_index = 0
+  if nx.is_directed(g):
+    for node in g.nodes():
+      d = nx.degree(g, node)
+      if d not in out_degree2nodes[d]:
+        out_degree2nodes[d] = []
+      out_degree2nodes[d].append(node)
+    while rewiring_index < rewiring_num:
+      node1, node2 = ran.choice(list(g.edges()))
+      d1, d2 = nx.degree(node1), nx.degree(node2)
+      node3, node4 = ran.choice(out_degree2nodes[d1]), ran.choice(out_degree2nodes[d2])
+      if node3 == node4 or g.has_edge(node3, node4) or g.has_edge(node4, node3):
+        continue
+      rewiring_index += 1
+      g.remove_edge(node1, node2)
+      g.add_edge(node3, node4)
+  else:
+    for node in g.nodes():
+      d = g.out_degree(node)
+      if d not in out_degree2nodes[d]:
+        out_degree2nodes[d] = []
+      out_degree2nodes[d].append(node)
+    while rewiring_index < rewiring_num:
+      node1, node2 = ran.choice(list(g.edges()))
+      d1, d2 = g.out_degree(node1), g.out_degree(node2)
+      node3, node4 = ran.choice(out_degree2nodes[d1]), ran.choice(out_degree2nodes[d2])
+      if node3 == node4 or g.has_edge(node3, node4) or g.has_edge(node4, node3):
+        continue
+      rewiring_index += 1
+      g.remove_edge(node1, node2)
+      g.add_edge(node3, node4)
+  return g
+  
+
+def rand_deg_deg(g):
+  out_deg_deg2nodes = {}
+  rewiring_num = max(10000, g.number_of_edges())
+  rewiring_index = 0
+  if nx.is_directed(g):
+    for node1, node2 in g.nodes():
+      d1 = nx.degree(g, node1)
+      d2 = nx.degree(g, node2)
+      if (d1, d2) not in out_deg_deg2nodes[(d1, d2)]:
+        out_deg_deg2nodes[(d1, d2)] = []
+        out_deg_deg2nodes[(d2, d1)] = []
+      out_deg_deg2nodes[(d1, d2)].append((node1, node2))
+      if d1 != d2:
+        out_deg_deg2nodes[(d2, d1)].append((node1, node2))
+    while rewiring_index < rewiring_num:
+      node1, node2 = ran.choice(list(g.edges()))
+      d1, d2 = nx.degree(node1), nx.degree(node2)
+      node3, node4 = ran.choice(out_deg_deg2nodes[(d1, d2)])
+      d3, d4 = nx.degree(node1), nx.degree(node2)
+      if d1 == d4 and d2 == d3:
+        if node1 == node3 or g.has_edge(node3, node1) or g.has_edge(node1, node3):
+          continue
+        if node2 == node4 or g.has_edge(node2, node4) or g.has_edge(node4, node2):
+          continue
+        rewiring_index += 1
+        g.remove_edge(node1, node2)
+        g.remove_edge(node3, node4)
+        g.add_edge(node1, node3)
+        g.add_edge(node2, node4)
+        out_deg_deg2nodes[(d1, d2)].remove((node1, node2))
+        out_deg_deg2nodes[(d1, d2)].remove((node3, node4))
+        out_deg_deg2nodes[(d1, d2)].append((node1, node3))
+        out_deg_deg2nodes[(d1, d2)].append((node2, node4))
+        if d1 != d2:
+          out_deg_deg2nodes[(d2, d1)].remove((node1, node2))
+          out_deg_deg2nodes[(d2, d1)].remove((node3, node4))
+          out_deg_deg2nodes[(d2, d1)].append((node1, node3))
+          out_deg_deg2nodes[(d2, d1)].append((node2, node4))
+      elif d1 == d3 and d2 == d4:
+        if node1 == node4 or g.has_edge(node4, node1) or g.has_edge(node1, node4):
+          continue
+        if node2 == node3 or g.has_edge(node2, node3) or g.has_edge(node3, node2):
+          continue
+        rewiring_index += 1
+        g.remove_edge(node1, node2)
+        g.remove_edge(node3, node4)
+        g.add_edge(node1, node4)
+        g.add_edge(node2, node3)
+        out_deg_deg2nodes[(d1, d2)].remove((node1, node2))
+        out_deg_deg2nodes[(d1, d2)].remove((node3, node4))
+        out_deg_deg2nodes[(d1, d2)].append((node1, node4))
+        out_deg_deg2nodes[(d1, d2)].append((node2, node3))
+        if d1 != d2:
+          out_deg_deg2nodes[(d2, d1)].remove((node1, node2))
+          out_deg_deg2nodes[(d2, d1)].remove((node3, node4))
+          out_deg_deg2nodes[(d2, d1)].append((node1, node4))
+          out_deg_deg2nodes[(d2, d1)].append((node2, node3))
+  else:
+    for node1, node2 in g.nodes():
+      d1 = nx.degree(g, node1)
+      d2 = nx.degree(g, node2)
+      if (d1, d2) not in out_deg_deg2nodes[(d1, d2)]:
+        out_deg_deg2nodes[(d1, d2)] = []
+      out_deg_deg2nodes[(d1, d2)].append((node1, node2))
+    while rewiring_index < rewiring_num:
+      node1, node2 = ran.choice(list(g.edges()))
+      d1, d2 = nx.degree(node1), nx.degree(node2)
+      node3, node4 = ran.choice(out_deg_deg2nodes[(d1, d2)])
+      if node1 == node4 or g.has_edge(node1, node4):
+        continue
+      if node2 == node3 or g.has_edge(node3, node2):
+        continue
+      rewiring_index += 1
+      g.remove_edge(node1, node2)
+      g.remove_edge(node3, node4)
+      g.add_edge(node1, node4)
+      g.add_edge(node2, node3)
+      out_deg_deg2nodes[(d1, d2)].remove((node1, node2))
+      out_deg_deg2nodes[(d1, d2)].remove((node3, node4))
+      out_deg_deg2nodes[(d1, d2)].append((node1, node4))
+      out_deg_deg2nodes[(d1, d2)].append((node3, node2))
+
+  return g
+
+
+def theory_and_classical_aucs():
   with open('undirected'+output_file, 'w') as f:
     None
   with open('directed'+output_file, 'w') as f:
@@ -413,9 +579,23 @@ if __name__ == '__main__':
   # Compute two examplem datasets in parallel
   output(undirected_document + '/10.txt', 'undirected')
   output(directed_document + '/14.txt', 'directed')
-
   # Compute multiple datasets in parallel
-  '''
+  # fs = []
+  # nts = []
+  # for file in os.listdir(undirected_document):
+  #   fs.append(undirected_document + '/' + file)
+  #   nts.append('undirected')
+  # for file in os.listdir(directed_document):
+  #   fs.append(directed_document + '/' + file)
+  #   nts.append('directed')
+  # parallel(output, fs, nts)
+
+
+def rewiring_classical_auc():
+  with open('undirected'+rewiring_file, 'w') as f:
+    None
+  with open('directed'+rewiring_file, 'w') as f:
+    None
   fs = []
   nts = []
   for file in os.listdir(undirected_document):
@@ -424,7 +604,11 @@ if __name__ == '__main__':
   for file in os.listdir(directed_document):
     fs.append(directed_document + '/' + file)
     nts.append('directed')
-  parallel(output, fs, nts)
-  '''
+  parallel(rewiring_output, fs, nts)
+  
+
+if __name__ == '__main__':
+  # theory_and_classical_aucs()
+  rewiring_classical_auc()
 
 
