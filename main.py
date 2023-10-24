@@ -400,7 +400,7 @@ def output(file_name, net_type, all_delta_sample=100000):
   print('topology:', file_name, N, M, CC, r, l, sep='\t')
   print('old:\t', '\t'.join(classical_simulations))
   print('new:\t', '\t'.join(novel_theorys))
-  with open(net_type+output_file, 'a') as f:
+  with open(net_type+'_'+output_file, 'a') as f:
     f.write('\t'.join([file_name, str(N), str(M), str(CC), str(r), str(l)] + classical_simulations + novel_theorys))
     f.write('\n')
 
@@ -417,7 +417,7 @@ def rewiring_output(file_name, net_type):
     file_name = file_name[len(undirected_document)+1:]
   else:
     file_name = file_name[len(directed_document)+1:]
-  with open(net_type+rewiring_file, 'a') as f:
+  with open(net_type+'_'+rewiring_file, 'a') as f:
     f.write('\t'.join([file_name] + rewiring))
     f.write('\n')
 
@@ -571,9 +571,9 @@ def rand_deg_deg(g):
 
 
 def theory_and_classical_aucs():
-  with open('undirected'+output_file, 'w') as f:
+  with open('undirected'+'_'+output_file, 'w') as f:
     None
-  with open('directed'+output_file, 'w') as f:
+  with open('directed'+'_'+output_file, 'w') as f:
     None
   
   # Compute two examplem datasets in parallel
@@ -592,9 +592,9 @@ def theory_and_classical_aucs():
 
 
 def rewiring_classical_auc():
-  with open('undirected'+rewiring_file, 'w') as f:
+  with open('undirected'+'_'+rewiring_file, 'w') as f:
     None
-  with open('directed'+rewiring_file, 'w') as f:
+  with open('directed'+'_'+rewiring_file, 'w') as f:
     None
   fs = []
   nts = []
