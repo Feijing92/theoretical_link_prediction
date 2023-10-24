@@ -10,5 +10,7 @@ The datasets we used are generated from https://icon.colorado.edu/#!/networks.
 We only provide two example networks here.
 
 ```
+# theory_and_classical_aucs(): Calculation of AUC and error bound in two LP processes
+# rewiring_classical_auc(): Calculation of AUC for classical LP in rewired networks
 python main.py
 ```
