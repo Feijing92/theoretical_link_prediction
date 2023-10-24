@@ -8,6 +8,7 @@ Error analysis method is given by the distribution of higher order topology in o
 ## AUCs in classical link prediction process and local link prediction process
 The datasets we used are generated from https://icon.colorado.edu/#!/networks. 
 Here we only put forward an example network.
+
 '''
 python main.py
 '''
