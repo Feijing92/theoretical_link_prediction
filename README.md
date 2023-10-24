@@ -5,7 +5,7 @@ In particular, we discussed nine local-topology-based link prediction algorithms
 In these cases, theoretical analysis can be directed soved by random graph tools and/or percolaton tools (generating functions).
 Error analysis method is given by the distribution of higher order topology in original networks (a simple example can be found in Fig.1).
 
-## Calculation of AUC and error bound in two LP processes
+## Main code and results
 The datasets we used are generated from https://icon.colorado.edu/#!/networks. 
 We only provide two example networks here.
 
