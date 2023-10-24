@@ -411,7 +411,9 @@ def rewiring_output(file_name, net_type):
   for method1 in METHOD:
     for s in range(1, 10):
       rand_number = s * 0.1
-      rewiring.append(str(round(link_prediction_system(G, 'rand', method1, rand_number),4)))
+      rewiring.append(str(round(link_prediction_system(rand_ER(G), 'rand', method1, rand_number),4)))
+      rewiring.append(str(round(link_prediction_system(rand_deg(G), 'rand', method1, rand_number),4)))
+      rewiring.append(str(round(link_prediction_system(rand_deg_deg(G), 'rand', method1, rand_number),4)))
 
   if net_type == 'undirected':
     file_name = file_name[len(undirected_document)+1:]
@@ -422,7 +424,8 @@ def rewiring_output(file_name, net_type):
     f.write('\n')
 
 
-def rand_ER(g):
+def rand_ER(g1):
+  g = g1
   rewiring_num = max(10000, g.number_of_edges())
   rewiring_index = 0
   if nx.is_directed(g):
@@ -448,7 +451,8 @@ def rand_ER(g):
   return g
 
 
-def rand_deg(g):
+def rand_deg(g1):
+  g = g1
   out_degree2nodes = {}
   rewiring_num = max(10000, g.number_of_edges())
   rewiring_index = 0
@@ -485,7 +489,8 @@ def rand_deg(g):
   return g
   
 
-def rand_deg_deg(g):
+def rand_deg_deg(g1):
+  g = g1
   out_deg_deg2nodes = {}
   rewiring_num = max(10000, g.number_of_edges())
   rewiring_index = 0
@@ -596,6 +601,9 @@ def rewiring_classical_auc():
     None
   with open('directed'+'_'+rewiring_file, 'w') as f:
     None
+  rewiring_output(undirected_document + '/10.txt', 'undirected')
+  rewiring_output(directed_document + '/14.txt', 'directed')
+  '''
   fs = []
   nts = []
   for file in os.listdir(undirected_document):
@@ -605,6 +613,7 @@ def rewiring_classical_auc():
     fs.append(directed_document + '/' + file)
     nts.append('directed')
   parallel(rewiring_output, fs, nts)
+  '''
   
 
 if __name__ == '__main__':
