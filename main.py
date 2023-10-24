@@ -11,7 +11,6 @@ import os
 
 
 TURN_MAX = 10
-RAND_PROB = 0.1
 SAMPING_MAX = 1000
 THEORY_SAMPING_MAX = TURN_MAX * SAMPING_MAX
 ALPHA = -0.05 # just for SDM
@@ -55,7 +54,7 @@ def parallel(func, *args, show=False, thread=False, **kwargs):
         pool.clear()  # Remove server with matching state
 
 
-def link_prediction_system(network, division, algorithm, measurement='auc'):
+def link_prediction_system(network, division, algorithm, RAND_PROB, measurement='auc'):
   # parameter statistics
   N, M = network.number_of_nodes(), network.number_of_edges()
   all_nodes = list(network.nodes())
@@ -75,9 +74,9 @@ def link_prediction_system(network, division, algorithm, measurement='auc'):
     for edge in training_links:
       in_neighbors[edge[1]].append(edge[0])
       out_neighbors[edge[0]].append(edge[1])
-    if not nx.is_directed(network):
-      in_neighbors[edge[0]].append(edge[1])
-      out_neighbors[edge[1]].append(edge[0])
+      if not nx.is_directed(network):
+        in_neighbors[edge[0]].append(edge[1])
+        out_neighbors[edge[1]].append(edge[0])
 
     # list all scoring methods
     if algorithm == 'CN':
@@ -147,7 +146,7 @@ def fixed_strategy(network, m):
   return train, probe
 
 
-def auc_theoretical_analysis(network, algorithm):
+def auc_theoretical_analysis(network, algorithm, RAND_PROB):
   N, M = network.number_of_nodes(), network.number_of_edges()
   all_nodes = list(network.nodes())
   all_edges = list(network.edges())
@@ -157,9 +156,9 @@ def auc_theoretical_analysis(network, algorithm):
   for edge in network.edges():
     in_neighbors[edge[1]].append(edge[0])
     out_neighbors[edge[0]].append(edge[1])
-  if not nx.is_directed(network):
-    in_neighbors[edge[0]].append(edge[1])
-    out_neighbors[edge[1]].append(edge[0])
+    if not nx.is_directed(network):
+      in_neighbors[edge[0]].append(edge[1])
+      out_neighbors[edge[1]].append(edge[0])
 
   sampling_index = 0
   score_index = 0.0
@@ -411,9 +410,12 @@ if __name__ == '__main__':
   with open('directed'+output_file, 'w') as f:
     None
   
-  # example
-  # output(directed_document + '/145.txt', network_type)
+  # Compute two examplem datasets in parallel
+  output(undirected_document + '/10.txt', 'undirected')
+  output(directed_document + '/14.txt', 'directed')
 
+  # Compute multiple datasets in parallel
+  '''
   fs = []
   nts = []
   for file in os.listdir(undirected_document):
@@ -423,5 +425,6 @@ if __name__ == '__main__':
     fs.append(directed_document + '/' + file)
     nts.append('directed')
   parallel(output, fs, nts)
+  '''
 
 
