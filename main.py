@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
 import networkx as nx
 import random as ran
 import math
@@ -8,6 +10,7 @@ from functools import partial
 from pathos.pools import ProcessPool, ThreadPool
 from tqdm import tqdm
 import os
+import sys
 
 
 TURN_MAX = 10
@@ -27,7 +30,7 @@ output_file = 'delta.txt'
 rewiring_file = 'rewiring.txt'
 all_rewires = ['non', 'zero', 'first', 'first_ass', 'first_dis', 'first_ass_constCC', 'first_dis_constCC', 'second', 'third', 'third_increaseCC', 'third_decreaseCC']
 artificial_output_file = './undirected_artificial_auc.txt'
-
+rewiring_num = 10000
 
 
 def parallel(func, *args, show=False, thread=False, **kwargs):
@@ -410,86 +413,75 @@ def output(file_name, net_type, all_delta_sample=100000):
     f.write('\n')
 
 
-def rewiring_output(file_name, net_type):
-  G = read_network(file_name, net_type)
-  rewiring = []
-  G1 = rand_ER(G)
-  G2 = rand_deg(G)
-  G3 = rand_deg_deg(G)
-  for method1 in METHOD:
-    for s in range(1, 10):
-      rand_number = s * 0.1
-      r1 = round(link_prediction_system(G1, 'rand', method1, rand_number),4)
-      if not G2:
-        r2 = -1
-      else:
-        r2 = round(link_prediction_system(G2, 'rand', method1, rand_number),4)
-      if not G3:
-        r3 = -1
-      else:
-        r3 = round(link_prediction_system(G3, 'rand', method1, rand_number),4)
-      rewiring += [str(r1), str(r2), str(r3)]
-      print(r1, r2, r3)
-      
-  if net_type == 'undirected':
-    file_name = file_name[len(undirected_document)+1:]
-  else:
-    file_name = file_name[len(directed_document)+1:]
-  with open(net_type+'_'+rewiring_file, 'a') as f:
-    f.write('\t'.join([file_name] + rewiring))
-    f.write('\n')
-
-
-def rand_ER(g1):
+def rand_ER(g1, connected):
   if nx.is_directed(g1):
-    g = nx.DiGraph()
+    g = nx.DiGraph(list(g1.edges()))
   else:
-    g = nx.Graph()
-  g.add_edges_from(list(g1.edges()))
-  rewiring_num = max(10000, g.number_of_edges())
-  rewiring_index = 0
-  if not nx.is_directed(g):
-    while rewiring_index < rewiring_num:
-      edge = ran.choice(list(g.edges()))
-      node1 = ran.choice(list(g.nodes()))
-      node2 = ran.choice(list(g.nodes()))
-      if node1 == node2 or g.has_edge(node1, node2):
-        continue
-      g.remove_edge(edge[0], edge[1])
-      g.add_edge(node1, node2)
-      if not nx.is_connected(g):
-        g.add_edge(edge[0], edge[1])
-        g.remove_edge(node1, node2)
-        continue
-      rewiring_index += 1
-  else:
-    while rewiring_index < rewiring_num:
-      edge = ran.choice(list(g.edges()))
-      node1 = ran.choice(list(g.nodes()))
-      node2 = ran.choice(list(g.nodes()))
-      if node1 == node2 or g.has_edge(node1, node2) or g.has_edge(node2, node1):
-        continue
-      g.remove_edge(edge[0], edge[1])
-      g.add_edge(node1, node2)
-      if not nx.is_weakly_connected(g):
-        g.add_edge(edge[0], edge[1])
-        g.remove_edge(node1, node2)
-        continue
-      rewiring_index += 1
-  return g
-
-
-def rand_deg(g1):
-  if nx.is_directed(g1):
-    g = nx.DiGraph()
-  else:
-    g = nx.Graph()
-  g.add_edges_from(list(g1.edges()))
-  rewiring_num = max(10000, g.number_of_edges())
+    g = nx.Graph(list(g1.edges()))
   rewiring_index = 0
   error_index = 0
   if not nx.is_directed(g):
     while rewiring_index < rewiring_num and error_index < 10000:
+      # print(rewiring_index, error_index)
+      node1 = ran.choice(list(g.nodes()))
+      node2 = ran.choice(list(g.nodes()))
+      if node1 == node2 or g.has_edge(node1, node2) or g.has_edge(node2, node1):
+        error_index += 1
+        continue
+      edge = ran.choice(list(g.edges()))
+      g.remove_edge(edge[0], edge[1])
+      g.add_edge(node1, node2)
+      # if connected:
+      #   if not nx.is_connected(g):
+      #     g.add_edge(edge[0], edge[1])
+      #     g.remove_edge(node1, node2)
+      #     continue
+      rewiring_index += 1
+      error_index = 0
+  else:
+    while rewiring_index < rewiring_num and error_index < 10000:
+      # print(rewiring_index, error_index)
+      node1 = ran.choice(list(g.nodes()))
+      node2 = ran.choice(list(g.nodes()))
+      if node1 == node2 or g.has_edge(node1, node2):
+        error_index += 1
+        continue
+      edge = ran.choice(list(g.edges()))
+      g.remove_edge(edge[0], edge[1])
+      g.add_edge(node1, node2)
+      # if connected:
+      #   if not nx.is_weakly_connected(g):
+      #     g.add_edge(edge[0], edge[1])
+      #     g.remove_edge(node1, node2)
+      #     continue
+      rewiring_index += 1
+      error_index = 0
+  if error_index >= 10000:
+    return False
+  else:
+    return g
+
+
+def model_rand_ER(g1):
+  n, m = g1.number_of_nodes(), g1.number_of_edges()
+  if nx.is_directed(g1):
+    p = 1.0*m/n/(n-1)
+    return nx.erdos_renyi_graph(n, p, directed=True)
+  else:
+    p = 2.0*m/n/(n-1)
+    return nx.erdos_renyi_graph(n, p, directed=False)
+
+
+def rand_deg(g1, connected):
+  if nx.is_directed(g1):
+    g = nx.DiGraph(list(g1.edges()))
+  else:
+    g = nx.Graph(list(g1.edges()))
+  rewiring_index = 0
+  error_index = 0
+  if not nx.is_directed(g):
+    while rewiring_index < rewiring_num and error_index < 10000:
+      # print(rewiring_index, error_index)
       node1, node2 = ran.choice(list(g.edges()))
       node3, node4 = ran.choice(list(g.edges()))
       if ran.random() < 0.5:
@@ -504,17 +496,19 @@ def rand_deg(g1):
       g.remove_edge(node3, node4)
       g.add_edge(node1, node3)
       g.add_edge(node2, node4)
-      if not nx.is_connected(g):
-        g.add_edge(node1, node2)
-        g.add_edge(node3, node4)
-        g.remove_edge(node1, node3)
-        g.remove_edge(node2, node4)
-        error_index += 1
-        continue
+      # if connected:
+      #   if not nx.is_connected(g):
+      #     g.add_edge(node1, node2)
+      #     g.add_edge(node3, node4)
+      #     g.remove_edge(node1, node3)
+      #     g.remove_edge(node2, node4)
+      #     error_index += 1
+      #     continue
       rewiring_index += 1
       error_index = 0
   else:
     while rewiring_index < rewiring_num and error_index < 10000:
+      # print(rewiring_index, error_index)
       node1, node2 = ran.choice(list(g.edges()))
       node3, node4 = ran.choice(list(g.edges()))
       if node1 == node4 or g.has_edge(node1, node4):
@@ -527,13 +521,14 @@ def rand_deg(g1):
       g.remove_edge(node3, node4)
       g.add_edge(node1, node4)
       g.add_edge(node3, node2)
-      if not nx.is_weakly_connected(g):
-        g.add_edge(node1, node2)
-        g.add_edge(node3, node4)
-        g.remove_edge(node1, node4)
-        g.remove_edge(node3, node2)
-        error_index += 1
-        continue
+      # if connected:
+      #   if not nx.is_weakly_connected(g):
+      #     g.add_edge(node1, node2)
+      #     g.add_edge(node3, node4)
+      #     g.remove_edge(node1, node4)
+      #     g.remove_edge(node3, node2)
+      #     error_index += 1
+      #     continue
       rewiring_index += 1
       error_index = 0
   
@@ -543,173 +538,213 @@ def rand_deg(g1):
     return g
   
 
-def rand_deg_deg(g1):
+def model_rand_deg(g1):
   if nx.is_directed(g1):
-    g = nx.DiGraph()
+    out_degree_seq = dict(g1.out_degree()).values()
+    in_degree_seq = dict(g1.in_degree()).values()
+    g = nx.directed_configuration_model(in_degree_seq, out_degree_seq)
+    g = nx.DiGraph(g)
+    g.remove_edges_from(nx.selfloop_edges(g))
   else:
-    g = nx.Graph()
-  g.add_edges_from(list(g1.edges()))
-  out_deg_deg2nodes = {}
-  rewiring_num = max(10000, g.number_of_edges())
+    degree_seq = dict(g1.degree()).values()
+    g = nx.configuration_model(degree_seq)
+    g = nx.Graph(g)
+    g.remove_edges_from(nx.selfloop_edges(g))
+  return g
+
+
+def rand_deg_deg(g1, connected):
+  if nx.is_directed(g1):
+    g = nx.DiGraph(list(g1.edges()))
+  else:
+    g = nx.Graph(list(g1.edges()))
+  out_deg2nodes = {}
   rewiring_index = 0
   error_index = 0
   if not nx.is_directed(g):
-    for node1, node2 in g.edges():
-      d1 = nx.degree(g, node1)
-      d2 = nx.degree(g, node2)
-      if (d1, d2) not in out_deg_deg2nodes:
-        out_deg_deg2nodes[(d1, d2)] = []
-        out_deg_deg2nodes[(d2, d1)] = []
-      out_deg_deg2nodes[(d1, d2)].append((node1, node2))
-      if d1 != d2:
-        out_deg_deg2nodes[(d2, d1)].append((node1, node2))
+    for node in g.nodes():
+      d = g.degree(node)
+      if d not in out_deg2nodes:
+        out_deg2nodes[d] = []
+      out_deg2nodes[d].append(node)
     while rewiring_index < rewiring_num and error_index < 10000:
+      # print(rewiring_index, error_index)
       node1, node2 = ran.choice(list(g.edges()))
-      d1, d2 = nx.degree(g, node1), nx.degree(g, node2)
-      node3, node4 = ran.choice(out_deg_deg2nodes[(d1, d2)])
-      d3, d4 = nx.degree(g, node1), nx.degree(g, node2)
-      if d1 == d4 and d2 == d3:
-        if node1 == node3 or g.has_edge(node3, node1) or g.has_edge(node1, node3):
-          error_index += 1
-          continue
-        if node2 == node4 or g.has_edge(node2, node4) or g.has_edge(node4, node2):
-          error_index += 1
-          continue
-        g.remove_edge(node1, node2)
-        g.remove_edge(node3, node4)
-        g.add_edge(node1, node3)
-        g.add_edge(node2, node4)
-        if not nx.is_connected(g):
-          g.add_edge(node1, node2)
-          g.add_edge(node3, node4)
-          g.remove_edge(node1, node3)
-          g.remove_edge(node2, node4)
-          error_index += 1
-          continue
-        rewiring_index += 1
-        error_index = 0
-        out_deg_deg2nodes[(d1, d2)].remove((node1, node2))
-        out_deg_deg2nodes[(d1, d2)].remove((node3, node4))
-        out_deg_deg2nodes[(d1, d2)].append((node1, node3))
-        out_deg_deg2nodes[(d1, d2)].append((node2, node4))
-        if d1 != d2:
-          out_deg_deg2nodes[(d2, d1)].remove((node1, node2))
-          out_deg_deg2nodes[(d2, d1)].remove((node3, node4))
-          out_deg_deg2nodes[(d2, d1)].append((node1, node3))
-          out_deg_deg2nodes[(d2, d1)].append((node2, node4))
-      elif d1 == d3 and d2 == d4:
-        if node1 == node4 or g.has_edge(node4, node1) or g.has_edge(node1, node4):
-          error_index += 1
-          continue
-        if node2 == node3 or g.has_edge(node2, node3) or g.has_edge(node3, node2):
-          error_index += 1
-          continue
-        g.remove_edge(node1, node2)
-        g.remove_edge(node3, node4)
-        g.add_edge(node1, node4)
-        g.add_edge(node2, node3)
-        if not nx.is_connected(g):
-          g.add_edge(node1, node2)
-          g.add_edge(node3, node4)
-          g.remove_edge(node1, node4)
-          g.remove_edge(node2, node3)
-          error_index += 1
-          continue
-        rewiring_index += 1
-        error_index = 0
-        out_deg_deg2nodes[(d1, d2)].remove((node1, node2))
-        out_deg_deg2nodes[(d1, d2)].remove((node3, node4))
-        out_deg_deg2nodes[(d1, d2)].append((node1, node4))
-        out_deg_deg2nodes[(d1, d2)].append((node2, node3))
-        if d1 != d2:
-          out_deg_deg2nodes[(d2, d1)].remove((node1, node2))
-          out_deg_deg2nodes[(d2, d1)].remove((node3, node4))
-          out_deg_deg2nodes[(d2, d1)].append((node1, node4))
-          out_deg_deg2nodes[(d2, d1)].append((node2, node3))
-  else:
-    for node1, node2 in g.edges():
-      d1 = g.out_degree(node1)
-      d2 = g.out_degree(node2)
-      if (d1, d2) not in out_deg_deg2nodes:
-        out_deg_deg2nodes[(d1, d2)] = []
-      out_deg_deg2nodes[(d1, d2)].append((node1, node2))
-    while rewiring_index < rewiring_num and error_index < 10000:
-      node1, node2 = ran.choice(list(g.edges()))
-      d1, d2 = g.out_degree(node1), g.out_degree(node2)
-      node3, node4 = ran.choice(out_deg_deg2nodes[(d1, d2)])
-      if node1 == node4 or g.has_edge(node1, node4):
+      if ran.random() < 0.5:
+        node1, node2 = node2, node1
+      node3 = ran.choice(out_deg2nodes[g.degree(node1)])
+      if node1 == node3:
         error_index += 1
         continue
-      if node2 == node3 or g.has_edge(node3, node2):
+      node4 = ran.choice(list(g[node3]))
+      if node2 == node4:
         error_index += 1
         continue
-      
+      if g.has_edge(node1, node4) or g.has_edge(node4, node1) or g.has_edge(node3, node2) or g.has_edge(node2, node3):
+        error_index += 1
+        continue
       g.remove_edge(node1, node2)
       g.remove_edge(node3, node4)
       g.add_edge(node1, node4)
       g.add_edge(node3, node2)
-      if not nx.is_weakly_connected(g):
-        g.add_edge(node1, node2)
-        g.add_edge(node3, node4)
-        g.remove_edge(node1, node4)
-        g.remove_edge(node3, node2)
-        error_index += 1
-        continue
+      # if connected:
+      #   if not nx.is_connected(g):
+      #     g.add_edge(node1, node2)
+      #     g.add_edge(node3, node4)
+      #     g.remove_edge(node1, node4)
+      #     g.remove_edge(node3, node2)
+      #     error_index += 1
+      #     continue
       rewiring_index += 1
       error_index = 0
-      out_deg_deg2nodes[(d1, d2)].remove((node1, node2))
-      out_deg_deg2nodes[(d1, d2)].remove((node3, node4))
-      out_deg_deg2nodes[(d1, d2)].append((node1, node4))
-      out_deg_deg2nodes[(d1, d2)].append((node3, node2))
+  else:
+    for node in g.nodes():
+      d = g.out_degree(node)
+      if d not in out_deg2nodes:
+        out_deg2nodes[d] = []
+      out_deg2nodes[d].append(node)
+    while rewiring_index < rewiring_num and error_index < 10000:
+      # print(rewiring_index, error_index)
+      node1, node2 = ran.choice(list(g.edges()))
+      node3 = ran.choice(out_deg2nodes[g.out_degree(node1)])
+      if node1 == node3:
+        error_index += 1
+        continue
+      node4 = ran.choice(list(g[node3]))
+      if node2 == node4:
+        error_index += 1
+        continue
+      if g.has_edge(node1, node4) or g.has_edge(node3, node2):
+        error_index += 1
+        continue
+      g.remove_edge(node1, node2)
+      g.remove_edge(node3, node4)
+      g.add_edge(node1, node4)
+      g.add_edge(node3, node2)
+      # if connected:
+      #   if not nx.is_connected(g):
+      #     g.add_edge(node1, node2)
+      #     g.add_edge(node3, node4)
+      #     g.remove_edge(node1, node4)
+      #     g.remove_edge(node3, node2)
+      #     error_index += 1
+      #     continue
+      rewiring_index += 1
+      error_index = 0
   if error_index >= 10000:
     return False
   else:
     return g
 
 
-def theory_and_classical_aucs():
+def theory_and_classical_aucs(test):
   with open('undirected'+'_'+output_file, 'w') as f:
     None
   with open('directed'+'_'+output_file, 'w') as f:
     None
   
-  # Compute two examplem datasets in parallel
-  output(undirected_document + '/10.txt', 'undirected')
-  output(directed_document + '/14.txt', 'directed')
-  # Compute multiple datasets in parallel
-  # fs = []
-  # nts = []
-  # for file in os.listdir(undirected_document):
-  #   fs.append(undirected_document + '/' + file)
-  #   nts.append('undirected')
-  # for file in os.listdir(directed_document):
-  #   fs.append(directed_document + '/' + file)
-  #   nts.append('directed')
-  # parallel(output, fs, nts)
+  if test:
+    # Compute two examplem datasets in parallel
+    output(undirected_document + '/10.txt', 'undirected')
+    output(directed_document + '/14.txt', 'directed')
+  else:
+    # Compute multiple datasets in parallel
+    fs = []
+    nts = []
+    for file in os.listdir(undirected_document):
+      fs.append(undirected_document + '/' + file)
+      nts.append('undirected')
+    for file in os.listdir(directed_document):
+      fs.append(directed_document + '/' + file)
+      nts.append('directed')
+    parallel(output, fs, nts)
 
 
-def rewiring_classical_auc():
+def rewiring_output(file_name, net_type, connected):
+  rewiring = []
+  print(file_name, 'begining...')
+  G = read_network(file_name, net_type)
+  print(G.number_of_nodes(), G.number_of_edges())
+  # G1 = rand_ER(G, connected)
+  G1 = model_rand_ER(G)
+  if G1:
+    for method1 in METHOD:
+      for s in range(1, 10):
+        rand_number = s * 0.1
+        r1 = round(link_prediction_system(G1, 'rand', method1, rand_number),4)
+        rewiring.append(str(r1))
+    print(file_name + " rand-ER success!")
+  else:
+    rewiring += ['-1' for ix in range(81)]
+    print(file_name + " rand-ER fail!")
+
+  G2 = model_rand_deg(G)
+  if G2:
+    for method1 in METHOD:
+      for s in range(1, 10):
+        rand_number = s * 0.1
+        r2 = round(link_prediction_system(G2, 'rand', method1, rand_number),4)
+        rewiring.append(str(r2))
+    print(file_name + " rand-deg success!")
+  else:
+    rewiring += ['-1' for ix in range(81)]
+    print(file_name + " rand-deg fail!")
+
+  G3 = rand_deg_deg(G, connected)
+  if G3:
+    for method1 in METHOD:
+      for s in range(1, 10):
+        rand_number = s * 0.1
+        r3 = round(link_prediction_system(G3, 'rand', method1, rand_number),4)
+        rewiring.append(str(r3))
+    print(file_name + " rand-deg-deg success!")
+  else:
+    rewiring += ['-1' for ix in range(81)]
+    print(file_name + " rand-deg-deg fail!")
+      
+  if net_type == 'undirected':
+    file_name = file_name[len(undirected_document)+1:]
+  else:
+    file_name = file_name[len(directed_document)+1:]
+  with open(net_type+'_'+rewiring_file, 'a') as f:
+    f.write('\t'.join([file_name] + rewiring))
+    f.write('\n')
+
+
+def rewiring_classical_auc(test, connected):
   with open('undirected'+'_'+rewiring_file, 'w') as f:
     None
   with open('directed'+'_'+rewiring_file, 'w') as f:
     None
-  rewiring_output(undirected_document + '/10.txt', 'undirected')
-  rewiring_output(directed_document + '/14.txt', 'directed')
-  '''
-  fs = []
-  nts = []
-  for file in os.listdir(undirected_document):
-    fs.append(undirected_document + '/' + file)
-    nts.append('undirected')
-  for file in os.listdir(directed_document):
-    fs.append(directed_document + '/' + file)
-    nts.append('directed')
-  parallel(rewiring_output, fs, nts)
-  '''
+  if test:
+    rewiring_output(undirected_document + '/114.txt', 'undirected', connected)
+    rewiring_output(directed_document + '/121.txt', 'directed', connected)
+  else:
+    fs = []
+    nts = []
+    cts = []
+    for file in os.listdir(undirected_document):
+      fs.append(undirected_document + '/' + file)
+      nts.append('undirected')
+      cts.append(connected)
+    for file in os.listdir(directed_document):
+      fs.append(directed_document + '/' + file)
+      nts.append('directed')
+      cts.append(connected)
+    parallel(rewiring_output, fs, nts, cts)
   
 
 if __name__ == '__main__':
-  # theory_and_classical_aucs()
-  rewiring_classical_auc()
+  module_num = int(sys.argv[1])
+  def f(x):
+    if x == '0':
+      return False
+    else:
+      return True
+
+  if module_num == 0:
+    theory_and_classical_aucs(f(sys.argv[2]))
+  elif module_num == 1:
+    rewiring_classical_auc(f(sys.argv[2]), f(sys.argv[3]))
 
 
