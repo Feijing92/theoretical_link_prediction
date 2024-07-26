@@ -37,7 +37,7 @@ import matplotlib.pyplot as plt
 def one2one():
   a = 101
   b = 100
-  ass = [130, 160, 135] 
+  ass = [170, 140, 165] 
   bs = [150] 
   all_p = [0.001 * ip for ip in range(1001)]
   turn_max = 10000
@@ -47,8 +47,8 @@ def one2one():
     auc = 0
 
     for turn in range(turn_max):
-      chosen_a = np.random.binomial(ran.choice(ass), p)
-      chosen_b = np.random.binomial(ran.choice(bs), p)
+      chosen_a = np.random.binomial(ran.choice(ass), 1 - p)
+      chosen_b = np.random.binomial(ran.choice(bs), 1 - p)
       if chosen_a > chosen_b:
         auc += 1
       elif chosen_a == chosen_b:
