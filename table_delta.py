@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np 
 from scipy.stats import linregress
+import matplotlib.pyplot as plt
 
 
 def data_read_handling(data):
@@ -33,10 +34,10 @@ def delta_calculation(net_name, topology, simulation, theory, advanced_theory):
     advanced_deltas.append(delta)
 
   if np.average(deltas) > error:
-    print(net_name + ':', topology)
-    print(np.average(deltas), deltas)
-    print(np.average(advanced_deltas), advanced_deltas)
-    print('*' * 40)
+    print(net_name + ':', topology, np.average(deltas), np.average(advanced_deltas))
+    # print(deltas)
+    # print(advanced_deltas)
+    # print('*' * 40)
   
   return deltas, np.average(deltas), np.average(advanced_deltas)
 
@@ -65,33 +66,33 @@ def table_delta():
 
   with open('table_delta.txt', 'w') as f:
     f.write('\t'.join(['net_name', 'type', 'N', 'M', 'CC', 'r', 'delta_1']) + '\n')
+    print('undirected data processing: ')
     for key, value in undirected_data.items():
-      if key not in new_index:
-        continue
-      undirected_num += 1
+      
       topology, simulation, theory, advanced_theory = value
       deltas, d, ad = delta_calculation(key, topology, simulation, theory, advanced_theory)
       average_delta += d
       average_advanced_delta += ad
 
-      row = [key, 'undirected', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + new_index[key]
-
-      f.write('\t'.join(row) + '\n')
+      if key in new_index:
+        undirected_num += 1
+        row = [key, 'undirected', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + new_index[key]
+        f.write('\t'.join(row) + '\n')
     
+    print('directed data processing: ')
     for key, value in directed_data.items():
-      if key not in new_index:
-        continue
-      directed_num += 1
+      
       topology, simulation, theory, advanced_theory = value
       deltas, d, ad = delta_calculation(key, topology, simulation, theory, advanced_theory)
       average_delta += d
       average_advanced_delta += ad
 
-      row = [key, 'directed', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + new_index[key]
-
-      f.write('\t'.join(row) + '\n')
+      if key in new_index:
+        directed_num += 1
+        row = [key, 'directed', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + new_index[key]
+        f.write('\t'.join(row) + '\n')
   
-  print(undirected_num, directed_num)
+  print('data count: ', undirected_num, directed_num)
   total_num = undirected_num + directed_num
   print(round(average_delta / total_num, 4), round(average_advanced_delta / total_num, 4))
 
@@ -150,37 +151,67 @@ def correlation_analysis():
   titles = ['undirected', 'directed', 'all']
   
   for ix in range(3):
-    print(titles[ix] + ':')
+    # print(titles[ix] + ':')
     results = total_results[ix]
     deltas = total_deltas[ix]
     for method_name in ['pearson', 'kendall', 'spearman']:
+    # for method_name in ['pearson']:
       # undirected networks
       
-      print(method_name + ':')
-      a, b, c, d, e = results[5: 10]
-      xa = pd.Series(a)
-      xb = pd.Series(b)
-      xc = pd.Series(c)
-      xd = pd.Series(d)
-      xe = pd.Series(e)
-      print([round(xa.corr(xx, method=method_name), 4) for xx in [xb, xc, xd, xe]])
+      # print(method_name + ':')
+      # a, b, c, d, e = results[5: 10]
+      # xa = pd.Series(a)
+      # xb = pd.Series(b)
+      # xc = pd.Series(c)
+      # xd = pd.Series(d)
+      # xe = pd.Series(e)
+      # print([round(xa.corr(xx, method=method_name), 4) for xx in [xb, xc, xd, xe]])
+
+      optimal_error = []
+      vanishing_error = []
+
       for i, x in enumerate(deltas):
 
         x1 = pd.Series(x)
         relationships = []
-        for j, y in enumerate(results):
+        for j, y in enumerate(results[5: 9]):
           y1 = pd.Series(y)
-          # c = x1.corr(y1, method=method_name)
-          slope, intercept,r_value, p_value, std_err = linregress(x1, y1)
-          relationships.append(slope)
+          c = x1.corr(y1, method=method_name)
+          # slope, intercept,r_value, p_value, std_err = linregress(x1, y1)
+          relationships.append(c)
+        
+        if i % 9 == 1:
+          optimal_error.append(relationships)
+        elif i % 9 == 8:
+          vanishing_error.append(relationships)
+      
+      plt.figure(figsize=(12, 12))
+      for im, m in enumerate(methods):
+        plt.subplot(3, 3, im + 1)
+        x = np.array(rows[5: 9])
+        y = np.array(optimal_error[im])
+        plt.bar(x, y, color = ["#4CAF50","red","hotpink","#556B2F"])
+        plt.title(m)
+      # plt.show()
+      plt.savefig(titles[ix] + '_' + method_name + '_' + 'optimal_error.pdf', bbox_inches='tight')
 
-        print('\t'.join([columns[i]] + [str(round(x, 4)) for x in relationships]))
-    print('*' * 40)
+      plt.figure(figsize=(12, 12))
+      for im, m in enumerate(methods):
+        plt.subplot(3, 3, im + 1)
+        x = np.array(rows[5: 9])
+        y = np.array(vanishing_error[im])
+        plt.bar(x, y, color = ["#4CAF50","red","hotpink","#556B2F"])
+        plt.title(m)
+      # plt.show()
+      plt.savefig(titles[ix] + '_' + method_name + '_' + 'vanishing_error.pdf', bbox_inches='tight')
+
+    #     print('\t'.join([columns[i]] + [str(round(x, 4)) for x in relationships]))
+    # print('*' * 40)
 
 
 if __name__ == '__main__':
   delta_num = 81
-  error = 0.01
+  error = 0.02
 
   table_delta()
   correlation_analysis()
