@@ -151,24 +151,14 @@ def correlation_analysis():
   titles = ['undirected', 'directed', 'all']
   
   for ix in range(3):
-    # print(titles[ix] + ':')
     results = total_results[ix]
     deltas = total_deltas[ix]
-    for method_name in ['pearson', 'kendall', 'spearman']:
-    # for method_name in ['pearson']:
-      # undirected networks
-      
-      # print(method_name + ':')
-      # a, b, c, d, e = results[5: 10]
-      # xa = pd.Series(a)
-      # xb = pd.Series(b)
-      # xc = pd.Series(c)
-      # xd = pd.Series(d)
-      # xe = pd.Series(e)
-      # print([round(xa.corr(xx, method=method_name), 4) for xx in [xb, xc, xd, xe]])
+    # for method_name in ['pearson', 'kendall', 'spearman']:
+    for method_name in ['pearson']:
 
-      optimal_error = []
-      vanishing_error = []
+      # optimal_error = []
+      # vanishing_error = []
+      errors = [[] for i in range(9)]
 
       for i, x in enumerate(deltas):
 
@@ -180,30 +170,26 @@ def correlation_analysis():
           # slope, intercept,r_value, p_value, std_err = linregress(x1, y1)
           relationships.append(c)
         
-        if i % 9 == 1:
-          optimal_error.append(relationships)
-        elif i % 9 == 8:
-          vanishing_error.append(relationships)
-      
-      plt.figure(figsize=(12, 12))
-      for im, m in enumerate(methods):
-        plt.subplot(3, 3, im + 1)
-        x = np.array(rows[5: 9])
-        y = np.array(optimal_error[im])
-        plt.bar(x, y, color = ["#4CAF50","red","hotpink","#556B2F"])
-        plt.title(m)
-      # plt.show()
-      plt.savefig(titles[ix] + '_' + method_name + '_' + 'optimal_error.pdf', bbox_inches='tight')
+        # if i % 9 == 2:
+        #   optimal_error.append(relationships)
+        #   print('optimal:', x[:20])
+        # elif i % 9 == 8:
+        #   vanishing_error.append(relationships)
+        #   print('vanishing:', x[:20])
 
-      plt.figure(figsize=(12, 12))
-      for im, m in enumerate(methods):
-        plt.subplot(3, 3, im + 1)
-        x = np.array(rows[5: 9])
-        y = np.array(vanishing_error[im])
-        plt.bar(x, y, color = ["#4CAF50","red","hotpink","#556B2F"])
-        plt.title(m)
-      # plt.show()
-      plt.savefig(titles[ix] + '_' + method_name + '_' + 'vanishing_error.pdf', bbox_inches='tight')
+        errors[i % 9].append(relationships)
+      
+      for ip, p in enumerate(all_p):
+        plt.figure(figsize=(12, 12))
+        for im, m in enumerate(methods):
+          plt.subplot(3, 3, im + 1)
+          x = np.array(rows[5: 9])
+          y = np.array(errors[ip][im])
+          # print('optimal:', x, y)
+          plt.bar(x, y, color = ["#4CAF50","red","hotpink","#556B2F"])
+          plt.title(m)
+        # plt.show()
+        plt.savefig(titles[ix] + '_' + method_name + '_p=' + str(p) + '.pdf', bbox_inches='tight')
 
     #     print('\t'.join([columns[i]] + [str(round(x, 4)) for x in relationships]))
     # print('*' * 40)

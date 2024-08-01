@@ -145,11 +145,8 @@ def fun4():
   plt.show()
 
 
-def fun5():
-  a = 3
-  b = 1
-  all_c = list(range(1, 21))
-  all_p = [0.1 * ip for ip in range(1, 10)]
+def fun5(a, b):
+  all_p = [0.01 * ip for ip in range(101)]
   turn_max = 200000
   
   def auc(x1, x2):
@@ -162,21 +159,36 @@ def fun5():
       elif chosen_x1 == chosen_x2:
         auc += 0.5
     return auc / turn_max
-
-  for ip, p in enumerate(all_p):
-    delta_aucs = []
-    for ic, c in enumerate(all_c):
-      # auc1 = auc(a, b)
-      auc2 = auc(a + c, b + c)
-      delta_auc = auc2
-      delta_aucs.append(delta_auc)
-      # print(p, delta_auc)
-
-    plt.subplot(3, 3, ip + 1)
-    plt.plot(all_c, delta_aucs)
-    plt.title("p=" + str(p))
   
-  plt.show()
+  all_aucs = []
+  for c in range(10):
+    aucs = []
+    for ip, p in enumerate(all_p):
+      this_auc = auc(a + c, b + c)
+      aucs.append(this_auc)
+    all_aucs.append(aucs)
+  
+  plt.figure(figsize=(24, 12))
+  plt.subplot(1, 2, 1)
+
+  for c in range(10):
+    aucs = [all_aucs[9 - c][i] for i in range(101)]
+    plt.plot(all_p, aucs, label="overlap=" + str(9 - c))
+  plt.xlabel('p')
+  plt.ylabel('AUC')
+  plt.legend(loc='upper right', frameon=False, title='dependence')
+
+  plt.subplot(1, 2, 2)
+  for c in range(9):
+    errors = [all_aucs[c][i] - all_aucs[-1][i] for i in range(101)]
+    plt.plot(all_p, errors, label="overlap=" + str(9 - c))
+  plt.xlabel('p')
+  plt.ylabel('error')
+  plt.legend(loc='upper right', frameon=False, title='dependence')
+  
+  plt.title('a=' + str(a + 9) + ' & b=' + str(b + 9))
+  plt.savefig('toy_error(' + str(a + 9) + ',' + str(b + 9) + ').pdf', bbox_inches='tight')
+  print(a, b, 'completed!')
 
 
 if __name__ == '__main__':
@@ -184,4 +196,6 @@ if __name__ == '__main__':
   # fun2()
   # fun3()
   # fun4()
-  fun5()
+  fun5(3, 1)
+  fun5(5, 2)
+  fun5(15, 4)
