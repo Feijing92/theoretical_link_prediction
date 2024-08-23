@@ -14,8 +14,8 @@ import sys
 import gc
 
 
-TURN_MAX = 10
-SAMPING_MAX = 1000
+TURN_MAX = 20
+SAMPING_MAX = 2000
 THEORY_SAMPING_MAX = TURN_MAX * SAMPING_MAX
 ALPHA = -0.05 # just for SDM
 ALL_METHODS = ['CN', 'PA', 'SDM', 'Salton', 'Jaccard', 'Sorensen', 'HPI', 'HDI', 'LHNI']
@@ -80,11 +80,13 @@ def link_prediction_system(g1, division, algorithm, RAND_PROB, measurement='auc'
       training_links, probe_links = random_division(network, RAND_PROB)
     elif division == 'fixed':
       training_links, probe_links = fixed_strategy(network, M * RAND_PROB)
-    
-    if len(probe_links) == 0:
-      continue
-    turn += 1
 
+    if len(probe_links) == 0:
+      # score_index += 0.5 * SAMPING_MAX
+      continue
+
+    turn += 1
+    
     out_neighbors = dict(zip(all_nodes, [[] for node in all_nodes]))
     for edge in training_links:
       out_neighbors[edge[0]].append(edge[1])
@@ -137,6 +139,8 @@ def link_prediction_system(g1, division, algorithm, RAND_PROB, measurement='auc'
         elif nonexist_score == probe_score:
           score_index += 0.5
 
+  # if algorithm == 'CN':
+  #   print(probe_links, score_index / TURN_MAX / SAMPING_MAX)
   return score_index / TURN_MAX / SAMPING_MAX
 
 
@@ -376,105 +380,115 @@ def undirected_auc_theoretical_analysis_combined_with_motif(network, algorithm, 
       continue
     sampling_index += 1
     node3, node4 = ran.choice(all_edges)
+    motif = 0
+
+    # dependency testing...
     
-    if node1 == node3 or node1 == node4:
+    if node1 == node3:
       motif = 1
       overlap_node = node1
-    elif node2 == node3 or node2 == node4:
+      other_node1 = node2
+      other_node2 = node4
+    elif node1 == node4:
+      motif = 1
+      overlap_node = node1
+      other_node1 = node2
+      other_node2 = node3
+    elif node2 == node3:
       motif = 1
       overlap_node = node2
+      other_node1 = node1
+      other_node2 = node4
+    elif node2 == node4:
+      motif = 1
+      overlap_node = node2
+      other_node1 = node1
+      other_node2 = node3
     else:
-
-      ass = [0, 0, 0, 0]
+      dependency = [0, 0, 0, 0]
 
       if network.has_edge(node1, node3):
-        ass[0] = 1
+        dependency[0] = 1
       if network.has_edge(node1, node4):
-        ass[1] = 1
+        dependency[1] = 1
       if network.has_edge(node2, node3):
-        ass[2] = 1
+        dependency[2] = 1
       if network.has_edge(node2, node4):
-        ass[3] = 1
-      overlap = sum(ass)
-          
+        dependency[3] = 1
+
+      overlap = sum(dependency)
       if overlap > 0:
         motif = 2
-      else:
-        motif = 0
-
+    
+    # conduct local samping algorithms with dependency cases
+    
     if algorithm in FIRST_ORDER_METHOD:
-      original_nonexist_topology = len(list(set(out_neighbors[node1]) & set(out_neighbors[node2])))
-      original_exist_topology = len(list(set(out_neighbors[node3]) & set(out_neighbors[node4])))
-      original_overlap = len(list(set(out_neighbors[node3]) & set(out_neighbors[node4]) & set(out_neighbors[node1]) & set(out_neighbors[node2])))
-      
+      original_nonexist_common_neighbors = list(set(out_neighbors[node1]) & set(out_neighbors[node2]))
+      original_nonexist_topology = len(original_nonexist_common_neighbors)
+
+      original_exist_common_neighbors = list(set(out_neighbors[node3]) & set(out_neighbors[node4]))
+      original_exist_topology = len(original_exist_common_neighbors)
+
+      original_overlap = 0
+
       nonexist_topology = 0
       probe_topology = 0
-      
-      if motif == 1 and original_overlap > 0:
-        for random_division_turn in range(original_nonexist_topology - original_overlap):
-          if ran.random() < (1 - RAND_PROB) ** 2:
-            nonexist_topology += 1
-        for random_division_turn in range(original_exist_topology - original_overlap):
-          if ran.random() < (1 - RAND_PROB) ** 2:
-            probe_topology += 1
+
+      if motif == 1:
+        original_overlap_common_neighbors = list(set(original_nonexist_common_neighbors) & set(original_exist_common_neighbors))
+        original_overlap = len(original_overlap_common_neighbors)
+
+        if node3 in original_nonexist_common_neighbors or node4 in original_nonexist_common_neighbors:
+          original_nonexist_topology -= 1
 
         for random_division_turn in range(original_overlap):
           if ran.random() < 1 - RAND_PROB:
             if ran.random() < 1 - RAND_PROB:
-              probe_topology += 1
+              nonexist_topology += 1
             if ran.random() < 1 - RAND_PROB:
-              nonexist_topology += 1
-              
-      elif motif == 2 and overlap > 2:
-        if overlap == 3:
-          for random_division_turn in range(original_nonexist_topology - 1):
-            if ran.random() < (1 - RAND_PROB) ** 2:
-              nonexist_topology += 1
-          for random_division_turn in range(original_exist_topology - 1):
-            if ran.random() < (1 - RAND_PROB) ** 2:
-              probe_topology += 1
-  
-          for random_division_turn in range(1):
-            if ran.random() < 1 - RAND_PROB:
-              if ran.random() < 1 - RAND_PROB:
-                probe_topology += 1
-              if ran.random() < 1 - RAND_PROB:
-                nonexist_topology += 1
-        if overlap == 4:
-          for random_division_turn in range(original_nonexist_topology - 2):
-            if ran.random() < (1 - RAND_PROB) ** 2:
-              nonexist_topology += 1
-          for random_division_turn in range(original_exist_topology - 2):
-            if ran.random() < (1 - RAND_PROB) ** 2:
-              probe_topology += 1
-          
-          aaa = [0, 0, 0, 0]
-          for random_division_turn in range(4):
-            if ran.random() < 1 - RAND_PROB:
-              aaa[random_division_turn] = 1
-          
-          if aaa[0] == 1:
-            if aaa[2] == 1:
-              probe_topology += 1
-            if aaa[1] == 1:
-              nonexist_topology += 1
-          
-          if aaa[3] == 1:
-            if aaa[1] == 1:
-              probe_topology += 1
-            if aaa[2] == 1:
-              nonexist_topology += 1
-      
-      else:
-        if original_nonexist_topology > 0:
-          for random_division_turn in range(original_nonexist_topology):
-            if ran.random() < (1 - RAND_PROB) ** 2:
-              nonexist_topology += 1
-        if original_exist_topology > 0:
-          for random_division_turn in range(original_exist_topology):
-            if ran.random() < (1 - RAND_PROB) ** 2:
               probe_topology += 1
         
+        original_nonexist_topology -= original_overlap
+        original_exist_topology -= original_overlap
+              
+      elif motif == 2:
+
+        if overlap == 3:
+          if ran.random() < 1 - RAND_PROB:
+            if ran.random() < 1 - RAND_PROB:
+              nonexist_topology += 1
+            if ran.random() < 1 - RAND_PROB:
+              probe_topology += 1
+          
+          original_nonexist_topology -= 1
+          original_exist_topology -= 1
+        
+        elif overlap == 4:
+          for id in range(4):
+            if ran.random() < RAND_PROB:
+              dependency[id] = 0
+          
+          if dependency[0] * dependency[1] == 1:
+            probe_topology += 1
+          if dependency[0] * dependency[2] == 1:
+            nonexist_topology += 1
+          if dependency[2] * dependency[3] == 1:
+            probe_topology += 1
+          if dependency[1] * dependency[3] == 1:
+            nonexist_topology += 1 
+
+          original_nonexist_topology -= 2
+          original_exist_topology -= 2
+      
+      if original_nonexist_topology > 0:
+        for random_division_turn in range(original_nonexist_topology):
+          if ran.random() < (1 - RAND_PROB) ** 2:
+            nonexist_topology += 1
+      if original_exist_topology > 0:
+        for random_division_turn in range(original_exist_topology):
+          if ran.random() < (1 - RAND_PROB) ** 2:
+            probe_topology += 1
+
       nonexist_score, probe_score = nonexist_topology, probe_topology
 
       if nonexist_score < probe_score:
@@ -490,67 +504,53 @@ def undirected_auc_theoretical_analysis_combined_with_motif(network, algorithm, 
       probe_topology = [0, 0]
       
       if motif == 1:
-        if node1 == overlap_node:
-          other_node1 = node2
-        else:
-          other_node1 = node1
-        if node3 == overlap_node:
-          other_node2 = node4
-        else:
-          other_node2 = node3
-          
+        
         for random_division_turn in range(len(out_neighbors[overlap_node]) - 1):
           if ran.random() < 1 - RAND_PROB:
             nonexist_topology[1] += 1
             probe_topology[1] += 1
-        for random_division_turn in range(len(out_neighbors[other_node2])):
-          if ran.random() < 1 - RAND_PROB:
-            nonexist_topology[0] += 1
-        for random_division_turn in range(len(out_neighbors[other_node1]) - 1):
+        for random_division_turn in range(len(out_neighbors[other_node2]) - 1):
           if ran.random() < 1 - RAND_PROB:
             probe_topology[0] += 1
-      elif motif == 2:
-        if ass[0] == 1:
-          original_nonexist_topology[0] -= 1
-          original_exist_topology[0] -= 1
+        for random_division_turn in range(len(out_neighbors[other_node1])):
           if ran.random() < 1 - RAND_PROB:
-            probe_topology[0] += 1
             nonexist_topology[0] += 1
-        if ass[1] == 1:
-          original_nonexist_topology[0] -= 1
-          original_exist_topology[1] -= 1
-          if ran.random() < 1 - RAND_PROB:
-            probe_topology[1] += 1
-            nonexist_topology[0] += 1
-        if ass[2] == 1:
-          original_nonexist_topology[1] -= 1
-          original_exist_topology[0] -= 1
-          if ran.random() < 1 - RAND_PROB:
-            probe_topology[0] += 1
-            nonexist_topology[1] += 1
-        if ass[3] == 1:
-          original_nonexist_topology[1] -= 1
-          original_exist_topology[1] -= 1
-          if ran.random() < 1 - RAND_PROB:
-            probe_topology[1] += 1
-            nonexist_topology[1] += 1
-        
-        for i, x in enumerate(original_nonexist_topology):
-          if x > 0:
-            for random_division_turn in range(x):
-              if ran.random() > RAND_PROB:
-                nonexist_topology[i] += 1
-        
-        for i, x in enumerate(original_exist_topology):
-          if x > 1:
-              for random_division_turn in range(x - 1):
-                if ran.random() > RAND_PROB:
-                  probe_topology[i] += 1
+
       else:
+        
+        if motif == 2:
+          if dependency[0] == 1:
+            original_nonexist_topology[0] -= 1
+            original_exist_topology[0] -= 1
+            if ran.random() < 1 - RAND_PROB:
+              probe_topology[0] += 1
+              nonexist_topology[0] += 1
+
+          if dependency[1] == 1:
+            original_nonexist_topology[0] -= 1
+            original_exist_topology[1] -= 1
+            if ran.random() < 1 - RAND_PROB:
+              nonexist_topology[0] += 1
+              probe_topology[1] += 1
+              
+          if dependency[2] == 1:
+            original_nonexist_topology[1] -= 1
+            original_exist_topology[0] -= 1
+            if ran.random() < 1 - RAND_PROB:
+              nonexist_topology[1] += 1
+              probe_topology[0] += 1
+              
+          if dependency[3] == 1:
+            original_nonexist_topology[1] -= 1
+            original_exist_topology[1] -= 1
+            if ran.random() < 1 - RAND_PROB:
+              nonexist_topology[1] += 1
+              probe_topology[1] += 1
+            
         for i, x in enumerate(original_nonexist_topology):
           if x > 0:
             for random_division_turn in range(x):
-              if ran.random() > RAND_PROB:
+              if ran.random() < 1 - RAND_PROB:
                 nonexist_topology[i] += 1
         
         for i, x in enumerate(original_exist_topology):
@@ -563,8 +563,8 @@ def undirected_auc_theoretical_analysis_combined_with_motif(network, algorithm, 
         nonexist_score = nonexist_topology[0] * nonexist_topology[1]
         probe_score = probe_topology[0] * probe_topology[1]
       elif algorithm == 'SDM':
-        nonexist_score = 1.0 / (math.exp(ALPHA * nonexist_topology[0]) + math.exp(ALPHA * nonexist_topology[1]))
-        probe_score = 1.0 / (math.exp(ALPHA * probe_topology[0]) + math.exp(ALPHA * probe_topology[1]))
+        nonexist_score = math.exp(ALPHA * probe_topology[0]) + math.exp(ALPHA * probe_topology[1])
+        probe_score = math.exp(ALPHA * nonexist_topology[0]) + math.exp(ALPHA * nonexist_topology[1])
 
       if nonexist_score < probe_score:
         score_index += 1
@@ -572,271 +572,66 @@ def undirected_auc_theoretical_analysis_combined_with_motif(network, algorithm, 
         score_index += 0.5
   
     if algorithm in THIRD_ORDER_METHOD:
-      local_edges = []
       new_neighbors = {}
-      for node in [node1, node2, node3, node4]:
-        new_neighbors[node] = []
-        for node_node in out_neighbors[node]:
-          if (node, node_node) not in local_edges and (node_node, node) not in local_edges:
-            local_edges.append((node, node_node))
-      if (node3, node4) in local_edges:
-        local_edges.remove((node3, node4))
+
+      if motif == 1:
+        three_nodes = [other_node1, overlap_node, other_node2]
+        for node in three_nodes:
+          new_neighbors[node] = []
+          for node_node in out_neighbors[node]:
+            if node_node in three_nodes:
+              continue
+            if ran.random() < 1 - RAND_PROB:
+              new_neighbors[node].append(node_node)
+          
+        if other_node1 in out_neighbors[other_node2]:
+          if ran.random() < 1 - RAND_PROB:
+            new_neighbors[other_node1].append(other_node2)
+            new_neighbors[other_node2].append(other_node1)
+        
+        new_cn1 = len(list(set(new_neighbors[other_node2]) & set(new_neighbors[overlap_node])))
+        probe_topology = [len(new_neighbors[other_node2]) - new_cn1, len(new_neighbors[overlap_node]) - new_cn1, new_cn1]
+
+        new_cn2 = len(list(set(new_neighbors[other_node1]) & set(new_neighbors[overlap_node])))
+        nonexist_topology = [len(new_neighbors[other_node1]) - new_cn2, len(new_neighbors[overlap_node]) - new_cn2, new_cn2]
+
       else:
-        local_edges.remove((node4, node3))
 
-      for edge in local_edges:
-        if ran.random() < 1 - RAND_PROB:
-          new_node1, new_node2 = edge
-          new_neighbors[new_node1].append(new_node2)
-          if new_node2 in [node1, node2, node3, node4]:
-            new_neighbors[new_node2].append(new_node1)
-      
-      new_cn1 = len(list(set(new_neighbors[node3]) & set(new_neighbors[node4])))
-      new_cn2 = len(list(set(new_neighbors[node1]) & set(new_neighbors[node2])))
-      probe_topology = [len(new_neighbors[node3]) - new_cn1, len(new_neighbors[node4]) - new_cn1, new_cn1]
-      nonexist_topology = [len(new_neighbors[node1]) - new_cn2, len(new_neighbors[node2]) - new_cn2, new_cn2]
-      
-      # cn1 = len(list(set(out_neighbors[node3]) & set(out_neighbors[node4])))
-      # cn2 = len(list(set(out_neighbors[node1]) & set(out_neighbors[node2])))
-      # original_exist_topology = [len(out_neighbors[node3]) - cn1, len(out_neighbors[node4]) - cn1, cn1]
-      # original_nonexist_topology = [len(out_neighbors[node1]) - cn2, len(out_neighbors[node2]) - cn2, cn2]
-      # original_overlap = len(list(set(out_neighbors[node3]) & set(out_neighbors[node4]) & set(out_neighbors[node1]) & set(out_neighbors[node2])))
-      # nonexist_topology = [0, 0, 0]
-      # probe_topology = [0, 0, 0]
-      
-      # if motif == 1:
-      #   for random_division_turn in range(original_nonexist_topology[2] - original_overlap):
-      #     aa = [0, 0]
-      #     if ran.random() < 1 - RAND_PROB:
-      #       aa[0] == 1
-      #     if ran.random() < 1 - RAND_PROB:
-      #       aa[1] == 1
-          
-      #     if aa[0] * aa[1] == 1:
-      #       nonexist_topology[2] += 1
-      #       probe_topology[1] += 1
-      #     elif aa[0] == 1:
-      #       nonexist_topology[1] += 1
-      #       probe_topology[1] += 1
-      #     elif aa[1] == 1:
-      #       nonexist_topology[0] += 1
+        four_nodes = [node1, node2, node3, node4]
+        for node in four_nodes:
+          new_neighbors[node] = []
+          for node_node in out_neighbors[node]:
+            if node_node in four_nodes:
+              continue
+            if ran.random() < 1 - RAND_PROB:
+              new_neighbors[node].append(node_node)
 
-      #   for random_division_turn in range(original_exist_topology[2] - original_overlap):
-      #     aa = [0, 0]
-      #     if ran.random() < 1 - RAND_PROB:
-      #       aa[0] == 1
-      #     if ran.random() < 1 - RAND_PROB:
-      #       aa[1] == 1
-          
-      #     if aa[0] * aa[1] == 1:
-      #       probe_topology[2] += 1
-      #       nonexist_topology[1] += 1
-      #     elif aa[0] == 1:
-      #       probe_topology[1] += 1
-      #       nonexist_topology[1] += 1
-      #     elif aa[1] == 1:
-      #       probe_topology[0] += 1
+        if motif == 2:
+          if dependency[0] == 1:
+            if ran.random() < 1 - RAND_PROB:
+              new_neighbors[node1].append(node3)
+              new_neighbors[node3].append(node1)
 
-      #   for random_division_turn in range(original_overlap):
-      #     aaa = [0, 0, 0]
-      #     for ik in range(3):
-      #       if ran.random() < 1 - RAND_PROB:
-      #         aaa[ik] = 1
-          
-      #     if aaa[0] == 1:
-      #       if aaa[1] == 1:
-      #         probe_topology[2] += 1
-      #         if aaa[2] == 1:
-      #           nonexist_topology[2] += 1
-      #         else:
-      #           nonexist_topology[1] += 1
-      #       else:
-      #         probe_topology[1] += 1
-      #         if aaa[2] == 1:
-      #           nonexist_topology[2] += 1
-      #         else:
-      #           nonexist_topology[1] += 1
-      #     else:
-      #       if aaa[1] == 1:
-      #         probe_topology[0] += 1
-      #       if aaa[2] == 1:
-      #         nonexist_topology[0] += 1
+          if dependency[1] == 1:
+            if ran.random() < 1 - RAND_PROB:
+              new_neighbors[node1].append(node4)
+              new_neighbors[node4].append(node1)
               
-      #   if node1 == overlap_node:
-      #     other_node1 = node2
-      #   else:
-      #     other_node1 = node1
-      #   if node3 == overlap_node:
-      #     other_node2 = node4
-      #   else:
-      #     other_node2 = node3
-        
-      #   if network.has_edge(other_node1, other_node2):
-      #     for random_division_turn in range(len(out_neighbors[overlap_node]) + original_overlap - cn1 - cn2):
-      #       if ran.random() < 1 - RAND_PROB:
-      #         nonexist_topology[1] += 1
-      #         probe_topology[1] += 1
-      #   else:
-      #     for random_division_turn in range(len(out_neighbors[overlap_node]) - 1 + original_overlap - cn1 - cn2):
-      #       if ran.random() < 1 - RAND_PROB:
-      #         nonexist_topology[1] += 1
-      #         probe_topology[1] += 1
+          if dependency[2] == 1:
+            if ran.random() < 1 - RAND_PROB:
+              new_neighbors[node2].append(node3)
+              new_neighbors[node3].append(node2)
               
-      #   for random_division_turn in range(len(out_neighbors[other_node2]) - cn2):
-      #     if ran.random() < 1 - RAND_PROB:
-      #       nonexist_topology[0] += 1
-      #   for random_division_turn in range(len(out_neighbors[other_node1]) - 1 - cn1):
-      #     if ran.random() < 1 - RAND_PROB:
-      #       probe_topology[0] += 1
-              
-      # elif motif == 2:
-      #   if ass[0] == 1:
-      #     if ass[2] == 1:
-      #       original_nonexist_topology[2] -= 1
-      #     else:
-      #       original_nonexist_topology[0] -= 1
-      #     if ass[1] == 1:
-      #       original_exist_topology[2] -= 1
-      #     else:
-      #       original_exist_topology[0] -= 1
-      #   else:
-      #     if ass[2] == 1:
-      #       original_nonexist_topology[1] -= 1
-      #     if ass[1] == 1:
-      #       original_nonexist_topology[1] -= 1
-          
-      #   if ass[3] == 1:
-      #     if ass[1] == 1:
-      #       original_nonexist_topology[2] -= 1
-      #     else:
-      #       original_nonexist_topology[1] -= 1
-      #     if ass[2] == 1:
-      #       original_exist_topology[2] -= 1
-      #     else:
-      #       original_exist_topology[1] -= 1
-      #   else:
-      #     if ass[1] == 1:
-      #       original_nonexist_topology[0] -= 1
-      #     if ass[2] == 1:
-      #       original_exist_topology[0] -= 1
-        
-      #   aaa = [0, 0, 0, 0]
-      #   for random_division_turn in range(4):
-      #     if ass[random_division_turn] == 1:
-      #       if ran.random() < 1 - RAND_PROB:
-      #         aaa[random_division_turn] = 1
-        
-      #   if aaa[0] == 1:
-      #     if aaa[2] == 1:
-      #       nonexist_topology[2] += 1
-      #     else:
-      #       nonexist_topology[0] += 1
-      #     if aaa[1] == 1:
-      #       probe_topology[2] += 1
-      #     else:
-      #       probe_topology[0] += 1
-      #   else:
-      #     if aaa[2] == 1:
-      #       nonexist_topology[1] += 1
-      #     if aaa[1] == 1:
-      #       probe_topology[1] += 1
-          
-      #   if aaa[3] == 1:
-      #     if aaa[1] == 1:
-      #       nonexist_topology[2] += 1
-      #     else:
-      #       nonexist_topology[1] += 1
-      #     if aaa[2] == 1:
-      #       probe_topology[2] += 1
-      #     else:
-      #       probe_topology[1] += 1
-      #   else:
-      #     if aaa[1] == 1:
-      #       nonexist_topology[0] += 1
-      #     if aaa[2] == 1:
-      #       probe_topology[0] += 1
+          if dependency[3] == 1:
+            if ran.random() < 1 - RAND_PROB:
+              new_neighbors[node2].append(node4)
+              new_neighbors[node4].append(node2)
       
-      #   for i in range(3):
-      #     if original_nonexist_topology[i] > 0:
-      #       if i < 2:
-      #         for random_division_turn in range(original_nonexist_topology[i]):
-      #           if ran.random() > RAND_PROB:
-      #             nonexist_topology[i] += 1
-      #       else:
-      #         for random_division_turn in range(original_nonexist_topology[i]):
-      #           aa = [0, 0]
-      #           if ran.random() < 1 - RAND_PROB:
-      #             aa[0] = 1
-      #           if ran.random() < 1 - RAND_PROB:
-      #             aa[1] = 1
-      #           if aa[0] * aa[1] == 1:
-      #             probe_topology[2] += 1
-      #           else:
-      #             if aa[0] == 1:
-      #               probe_topology[0] += 1
-      #             if aa[1] == 1:
-      #               probe_topology[1] += 1 
-  
-      #     if i < 2 and original_exist_topology[i] > 1:
-      #       for random_division_turn in range(original_exist_topology[i] - 1):
-      #         if ran.random() > RAND_PROB:
-      #           probe_topology[i] += 1
-      #     elif i == 2 and original_exist_topology[i] > 0:
-      #       for random_division_turn in range(original_exist_topology[i]):
-      #         aa = [0, 0]
-      #         if ran.random() < 1 - RAND_PROB:
-      #           aa[0] = 1
-      #         if ran.random() < 1 - RAND_PROB:
-      #           aa[1] = 1
-      #         if aa[0] * aa[1] == 1:
-      #           probe_topology[2] += 1
-      #         else:
-      #           if aa[0] == 1:
-      #             probe_topology[0] += 1
-      #           if aa[1] == 1:
-      #             probe_topology[1] += 1 
-                    
-      # else:
-      #   for i in range(3):
-      #     if original_nonexist_topology[i] > 0:
-      #       if i < 2:
-      #         for random_division_turn in range(original_nonexist_topology[i]):
-      #           if ran.random() > RAND_PROB:
-      #             nonexist_topology[i] += 1
-      #       else:
-      #         for random_division_turn in range(original_nonexist_topology[i]):
-      #           aa = [0, 0]
-      #           if ran.random() < 1 - RAND_PROB:
-      #             aa[0] = 1
-      #           if ran.random() < 1 - RAND_PROB:
-      #             aa[1] = 1
-      #           if aa[0] * aa[1] == 1:
-      #             probe_topology[2] += 1
-      #           else:
-      #             if aa[0] == 1:
-      #               probe_topology[0] += 1
-      #             if aa[1] == 1:
-      #               probe_topology[1] += 1 
-  
-      #     if i < 2 and original_exist_topology[i] > 1:
-      #       for random_division_turn in range(original_exist_topology[i] - 1):
-      #         if ran.random() > RAND_PROB:
-      #           probe_topology[i] += 1
-      #     elif i == 2 and original_exist_topology[i] > 0:
-      #       for random_division_turn in range(original_exist_topology[i]):
-      #         aa = [0, 0]
-      #         if ran.random() < 1 - RAND_PROB:
-      #           aa[0] = 1
-      #         if ran.random() < 1 - RAND_PROB:
-      #           aa[1] = 1
-      #         if aa[0] * aa[1] == 1:
-      #           probe_topology[2] += 1
-      #         else:
-      #           if aa[0] == 1:
-      #             probe_topology[0] += 1
-      #           if aa[1] == 1:
-      #             probe_topology[1] += 1 
-                
+        new_cn1 = len(list(set(new_neighbors[node3]) & set(new_neighbors[node4])))
+        probe_topology = [len(new_neighbors[node3]) - new_cn1, len(new_neighbors[node4]) - new_cn1, new_cn1]
+
+        new_cn2 = len(list(set(new_neighbors[node1]) & set(new_neighbors[node2])))
+        nonexist_topology = [len(new_neighbors[node1]) - new_cn2, len(new_neighbors[node2]) - new_cn2, new_cn2]
       
       if algorithm == 'Salton':
         try:
@@ -1138,24 +933,48 @@ def directed_auc_theoretical_analysis_combined_with_motif(network, algorithm, RA
     sampling_index += 1
     node3, node4 = ran.choice(all_edges)
     
-    if node1 == node3 or node1 == node4:
+    # dependency testing...
+    
+    if node1 == node3:
       motif = 1
       overlap_node = node1
-    elif node2 == node3 or node2 == node4:
+      other_node1 = node2
+      other_node2 = node4
+    elif node1 == node4:
+      motif = 1
+      overlap_node = node1
+      other_node1 = node2
+      other_node2 = node3
+    elif node2 == node3:
       motif = 1
       overlap_node = node2
+      other_node1 = node1
+      other_node2 = node4
+    elif node2 == node4:
+      motif = 1
+      overlap_node = node2
+      other_node1 = node1
+      other_node2 = node3
     else:
       motif = 0
 
     if algorithm in FIRST_ORDER_METHOD:
-      original_nonexist_topology = len(list(set(out_neighbors[node1]) & set(out_neighbors[node2])))
-      original_exist_topology = len(list(set(out_neighbors[node3]) & set(out_neighbors[node4])))
-      original_overlap = len(list(set(out_neighbors[node3]) & set(out_neighbors[node4]) & set(out_neighbors[node1]) & set(out_neighbors[node2])))
+      original_nonexist_common_neighbors = list(set(out_neighbors[node1]) & set(out_neighbors[node2]))
+      original_nonexist_topology = len(original_nonexist_common_neighbors)
+
+      original_exist_common_neighbors = list(set(out_neighbors[node3]) & set(out_neighbors[node4]))
+      original_exist_topology = len(original_exist_common_neighbors)
+
+      original_overlap = len(list(set(original_exist_common_neighbors) & set(original_nonexist_common_neighbors)))
       
       nonexist_topology = 0
       probe_topology = 0
       
-      if motif == 1 and original_overlap > 0:
+      if motif == 1:
+        if node3 == overlap_node:
+          if node4 in original_nonexist_common_neighbors:
+            original_nonexist_topology -= 1
+
         for random_division_turn in range(original_nonexist_topology - original_overlap):
           if ran.random() < (1 - RAND_PROB) ** 2:
             nonexist_topology += 1
@@ -1188,44 +1007,38 @@ def directed_auc_theoretical_analysis_combined_with_motif(network, algorithm, RA
         score_index += 0.5
     
     if algorithm in SECOND_ORDER_METHOD:
-      original_nonexist_topology = [len(out_neighbors[node1]), len(out_neighbors[node2])]
-      original_exist_topology = [len(out_neighbors[node3]), len(out_neighbors[node4])]
       
       nonexist_topology = [0, 0]
       probe_topology = [0, 0]
       
       if motif == 1:
-        if node1 == overlap_node:
-          other_node1 = node2
-        else:
-          other_node1 = node1
-        if node3 == overlap_node:
-          other_node2 = node4
-        else:
-          other_node2 = node3
-        
-        if node1 == other_node1:
-          for random_division_turn in range(len(out_neighbors[overlap_node])):
-            if ran.random() < 1 - RAND_PROB:
-              nonexist_topology[1] += 1
-              probe_topology[1] += 1
-          for random_division_turn in range(len(out_neighbors[other_node1]) - 1):
-            if ran.random() < 1 - RAND_PROB:
-              probe_topology[0] += 1
-        else:
-          for random_division_turn in range(len(out_neighbors[overlap_node]) - 1):
-            if ran.random() < 1 - RAND_PROB:
-              nonexist_topology[1] += 1
-              probe_topology[1] += 1
-          for random_division_turn in range(len(out_neighbors[other_node1])):
-            if ran.random() < 1 - RAND_PROB:
-              probe_topology[0] += 1
+        original_nonexist_topology = [len(out_neighbors[other_node1]), len(out_neighbors[overlap_node])]
+        original_exist_topology = [len(out_neighbors[other_node2]), len(out_neighbors[overlap_node])]
 
-        for random_division_turn in range(len(out_neighbors[other_node2])):
+        if node3 == overlap_node:
+          original_exist_topology[1] -= 1
+          original_nonexist_topology[1] -= 1
+        else:
+          original_exist_topology[0] -= 1
+        
+        for random_division_turn in range(original_nonexist_topology[1]):
+          if ran.random() < 1 - RAND_PROB:
+            nonexist_topology[1] += 1
+            probe_topology[1] += 1
+        
+        for random_division_turn in range(original_nonexist_topology[0]):
           if ran.random() < 1 - RAND_PROB:
             nonexist_topology[0] += 1
+        
+        for random_division_turn in range(original_exist_topology[0]):
+          if ran.random() < 1 - RAND_PROB:
+            probe_topology[0] += 1
 
       else:
+
+        original_nonexist_topology = [len(out_neighbors[node1]), len(out_neighbors[node2])]
+        original_exist_topology = [len(out_neighbors[node3]), len(out_neighbors[node4])]
+
         for i, x in enumerate(original_nonexist_topology):
           if x > 0:
             for random_division_turn in range(x):
@@ -1246,8 +1059,8 @@ def directed_auc_theoretical_analysis_combined_with_motif(network, algorithm, RA
         nonexist_score = nonexist_topology[0] * nonexist_topology[1]
         probe_score = probe_topology[0] * probe_topology[1]
       elif algorithm == 'SDM':
-        nonexist_score = 1.0 / (math.exp(ALPHA * nonexist_topology[0]) + math.exp(ALPHA * nonexist_topology[1]))
-        probe_score = 1.0 / (math.exp(ALPHA * probe_topology[0]) + math.exp(ALPHA * probe_topology[1]))
+        nonexist_score = math.exp(ALPHA * probe_topology[0]) + math.exp(ALPHA * probe_topology[1])
+        probe_score = math.exp(ALPHA * nonexist_topology[0]) + math.exp(ALPHA * nonexist_topology[1])
 
       if nonexist_score < probe_score:
         score_index += 1
@@ -1255,29 +1068,38 @@ def directed_auc_theoretical_analysis_combined_with_motif(network, algorithm, RA
         score_index += 0.5
   
     if algorithm in THIRD_ORDER_METHOD:
-      local_edges = []
       new_neighbors = {}
-      for node in [node1, node2, node3, node4]:
-        new_neighbors[node] = []
-        for node_node in out_neighbors[node]:
-          if (node, node_node) not in local_edges and (node_node, node) not in local_edges:
-            local_edges.append((node, node_node))
-      if (node3, node4) in local_edges:
-        local_edges.remove((node3, node4))
-      else:
-        local_edges.remove((node4, node3))
 
-      for edge in local_edges:
-        if ran.random() < 1 - RAND_PROB:
-          new_node1, new_node2 = edge
-          new_neighbors[new_node1].append(new_node2)
-          if new_node2 in [node1, node2, node3, node4]:
-            new_neighbors[new_node2].append(new_node1)
-      
-      new_cn1 = len(list(set(new_neighbors[node3]) & set(new_neighbors[node4])))
-      new_cn2 = len(list(set(new_neighbors[node1]) & set(new_neighbors[node2])))
-      probe_topology = [len(new_neighbors[node3]) - new_cn1, len(new_neighbors[node4]) - new_cn1, new_cn1]
-      nonexist_topology = [len(new_neighbors[node1]) - new_cn2, len(new_neighbors[node2]) - new_cn2, new_cn2]
+      if motif == 1:
+        three_nodes = [other_node1, overlap_node, other_node2]
+        for node in three_nodes:
+          new_neighbors[node] = []
+          for node_node in out_neighbors[node]:
+            if ran.random() < 1 - RAND_PROB:
+              new_neighbors[node].append(node_node)
+        
+        if node4 in new_neighbors[node3]:
+          new_neighbors[node3].remove(node4)
+        
+        new_cn1 = len(list(set(new_neighbors[other_node2]) & set(new_neighbors[overlap_node])))
+        probe_topology = [len(new_neighbors[other_node2]) - new_cn1, len(new_neighbors[overlap_node]) - new_cn1, new_cn1]
+
+        new_cn2 = len(list(set(new_neighbors[other_node1]) & set(new_neighbors[overlap_node])))
+        nonexist_topology = [len(new_neighbors[other_node1]) - new_cn2, len(new_neighbors[overlap_node]) - new_cn2, new_cn2]
+
+      else:
+        four_nodes = [node1, node2, node3, node4]
+        for node in four_nodes:
+          new_neighbors[node] = []
+          for node_node in out_neighbors[node]:
+            if ran.random() < 1 - RAND_PROB:
+              new_neighbors[node].append(node_node)
+
+        new_cn1 = len(list(set(new_neighbors[node3]) & set(new_neighbors[node4])))
+        probe_topology = [len(new_neighbors[node3]) - new_cn1, len(new_neighbors[node4]) - new_cn1, new_cn1]
+
+        new_cn2 = len(list(set(new_neighbors[node1]) & set(new_neighbors[node2])))
+        nonexist_topology = [len(new_neighbors[node1]) - new_cn2, len(new_neighbors[node2]) - new_cn2, new_cn2]
       
       if algorithm == 'Salton':
         try:
@@ -1378,7 +1200,7 @@ def read_network(file_path, net_type):
     return g.subgraph(max(nx.weakly_connected_components(g), key=len))
 
 
-def output(file_name, net_type, all_delta_sample=100000):
+def output(file_name, net_type):
   if 'ar' not in net_type:
     G = read_network(file_name, net_type)
   else:
@@ -1418,13 +1240,108 @@ def output(file_name, net_type, all_delta_sample=100000):
     file_name = file_name[len(undirected_artificial)+1:]
   elif net_type == 'directed_artificial':
     file_name = file_name[len(directed_artificial)+1:]
+  
   print('topology:', file_name, N, M, CC, r, sep='\t')
   print('old:\t', '\t'.join(classical_simulations))
   print('new:\t', '\t'.join(novel_theorys))
   print('advance:\t', '\t'.join(advanced_theorys))
-  with open('v2_' + net_type+'_'+output_file, 'a') as f:
-    f.write('\t'.join([file_name, str(N), str(M), str(CC), str(r)] + classical_simulations + novel_theorys + advanced_theorys))
-    f.write('\n')
+
+  if 'un' in net_type:
+    with open(undirected_result, 'a') as f:
+      f.write('\t'.join([file_name, str(N), str(M), str(CC), str(r)] + classical_simulations + novel_theorys + advanced_theorys))
+      f.write('\n')
+  else:
+    with open(directed_result, 'a') as f:
+      f.write('\t'.join([file_name, str(N), str(M), str(CC), str(r)] + classical_simulations + novel_theorys + advanced_theorys))
+      f.write('\n')
+
+
+def undirected_dependency_test(network):
+  all_nodes = list(network.nodes())
+  all_edges = list(network.edges())
+
+  sampling_index = 0
+  dependency_count_1 = 0
+  dependency_count_2 = 0
+
+  while sampling_index < THEORY_SAMPING_MAX:
+    node1, node2 = ran.choice(all_nodes), ran.choice(all_nodes)
+    if node1 == node2 or network.has_edge(node1, node2):
+      continue
+    sampling_index += 1
+    node3, node4 = ran.choice(all_edges)
+    
+    if node1 == node3:
+      dependency_count_1 += 1
+    elif node1 == node4:
+      dependency_count_1 += 1
+    elif node2 == node3:
+      dependency_count_1 += 1
+    elif node2 == node4:
+      dependency_count_1 += 1
+    else:
+      if network.has_edge(node1, node3):
+        dependency_count_2 += 1
+      elif network.has_edge(node1, node4):
+        dependency_count_2 += 1
+      elif network.has_edge(node2, node3):
+        dependency_count_2 += 1
+      elif network.has_edge(node2, node4):
+        dependency_count_2 += 1
+  
+  return dependency_count_1 / THEORY_SAMPING_MAX, dependency_count_2 / THEORY_SAMPING_MAX
+
+
+def directed_dependency_test(network):
+  all_nodes = list(network.nodes())
+  all_edges = list(network.edges())
+
+  sampling_index = 0
+  dependency_count_1 = 0
+  dependency_count_2 = 0
+
+  while sampling_index < THEORY_SAMPING_MAX:
+    node1, node2 = ran.choice(all_nodes), ran.choice(all_nodes)
+    if node1 == node2 or network.has_edge(node1, node2) or network.has_edge(node2, node1):
+      continue
+    sampling_index += 1
+    node3, node4 = ran.choice(all_edges)
+    
+    if node1 == node3:
+      dependency_count_1 += 1
+    elif node1 == node4:
+      if network.out_degree(node4) > 0:
+        dependency_count_2 += 1
+    elif node2 == node3:
+      dependency_count_1 += 1
+    elif node2 == node4:
+      if network.out_degree(node4) > 0:
+        dependency_count_2 += 1
+  
+  return dependency_count_1 / THEORY_SAMPING_MAX, dependency_count_2 / THEORY_SAMPING_MAX
+
+
+def dependency_output(file_name, net_type):
+  if 'ar' not in net_type:
+    G = read_network(file_name, net_type)
+  else:
+    G = read_network(file_name, net_type[:-11])
+  
+  if net_type == 'undirected':
+    file_name = file_name[len(undirected_document)+1:]
+  elif net_type == 'directed':
+    file_name = file_name[len(directed_document)+1:]
+  
+  if 'un' in net_type:
+    m1, m2 = undirected_dependency_test(G)
+    print(file_name, m1, m2, sep='\t')
+    with open(undirected_dependency_result, 'a') as f:
+      f.write('\t'.join([file_name, str(m1), str(m2)]) + '\n')
+  else:
+    m1, m2 = directed_dependency_test(G)
+    print(file_name, m1, m2, sep='\t')
+    with open(directed_dependency_result, 'a') as f:
+      f.write('\t'.join([file_name, str(m1), str(m2)]) + '\n')
 
 
 def rand_ER(g1, connected):
@@ -1885,8 +1802,6 @@ def file_read(file_name):
 
 def rewiring_classical_auc(module, connected=True):
   
-  
-
   if module == 0:
     rewiring_output(undirected_document + '/114.txt', 'undirected', connected)
     rewiring_output(directed_document + '/121.txt', 'directed', connected)
@@ -1950,31 +1865,49 @@ if __name__ == '__main__':
     rewiring_classical_auc(int(sys.argv[2]), sys.argv[3])
   '''
   
-  
-  ## stage1: simulation versus theory in undirected and directed networks
-  
-  # test in one data
-  # output('./dataset/newUndirected/180.txt', 'undirected')
-  # output('./dataset/newUndirected/z128.txt', 'undirected')
-  output('./dataset/newDirected/z5.txt', 'directed')
-  
-  # run in all data
+  # set output files
+  undirected_result = 'v3_undirected_delta.txt'
+  directed_result = 'v3_directed_delta.txt'
+  undirected_dependency_result = 'v3_undirected_dependency.txt'
+  directed_dependency_result = 'v3_directed_dependency.txt'
+
+  # set file locations of datasets we used 
   document1 = './dataset/newUndirected'
   document2 = './dataset/newDirected'
   parameters = [[], []]
-  with open('v2_undirected_delta.txt', 'w') as f:
-    None
-  with open('v2_directed_delta.txt', 'w') as f:
-    None
   for file in os.listdir(document1):
     parameters[0].append(document1 + '/' + file)
     parameters[1].append('undirected')
   for file in os.listdir(document2):
     parameters[0].append(document2 + '/' + file)
     parameters[1].append('directed')
-  parallel(output, parameters[0], parameters[1])
+
+  ## stage1: simulation versus theory in undirected and directed networks
   
-  ## stage2: simulation in rewired networks
+  # test in one data
+  # output('./dataset/newUndirected/S105_4.txt', 'undirected')
+  # output('./dataset/newDirected/713039_2.txt', 'directed')
+  
+  # run in all data
+  # with open(undirected_result, 'w') as f:
+  #   None
+  # with open(directed_result, 'w') as f:
+  #   None
+  # parallel(output, parameters[0], parameters[1])
+
+  ## stage2: dependency test
+  # test in one data
+  # dependency_output('./dataset/newUndirected/test.txt', 'undirected')
+  # dependency_output('./dataset/newDirected/z76.txt', 'directed')
+  
+  # run in all data
+  with open(undirected_dependency_result, 'w') as f:
+    None
+  with open(directed_dependency_result, 'w') as f:
+    None
+  parallel(dependency_output, parameters[0], parameters[1])
+
+  ## stage3: simulation in rewired networks
   
   # test in one data
   # rewiring_classical_auc(0)
@@ -1985,7 +1918,7 @@ if __name__ == '__main__':
   # continue process
   # rewiring_classical_auc(2)
   
-  ## stage 3: simulation in artificial networks with tunable CC and r
+  ## stage 4: simulation in artificial networks with tunable CC and r
   
   # test in one data
   

@@ -78,6 +78,10 @@ def table_delta():
         undirected_num += 1
         row = [key, 'undirected', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + new_index[key]
         f.write('\t'.join(row) + '\n')
+
+      # cn_deltas = [deltas[i] for i in range(9, 27)]
+      # if max(cn_deltas) > 0.05:
+      #   print(key, topology, cn_deltas)
     
     print('directed data processing: ')
     for key, value in directed_data.items():
@@ -91,6 +95,9 @@ def table_delta():
         directed_num += 1
         row = [key, 'directed', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + new_index[key]
         f.write('\t'.join(row) + '\n')
+      
+      if max(deltas) > 0.05:
+        print(key, topology, deltas)
   
   print('data count: ', undirected_num, directed_num)
   total_num = undirected_num + directed_num
@@ -200,7 +207,7 @@ if __name__ == '__main__':
   error = 0.02
 
   table_delta()
-  correlation_analysis()
+  # correlation_analysis()
   
 
       
