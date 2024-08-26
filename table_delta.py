@@ -4,7 +4,7 @@ from scipy.stats import linregress
 import matplotlib.pyplot as plt
 
 
-def data_read_handling(data):
+def topology_and_aucs_processing(data):
   data2result = {}
   with open(data) as f:
     lines = f.readlines()
@@ -16,6 +16,18 @@ def data_read_handling(data):
       theory = [float(x) for x in line1[86:167]]
       advanced_theory = [float(x) for x in line1[167:]]
       data2result[net_name] = [topology, simulation, theory, advanced_theory]
+  
+  return data2result
+
+
+def dependency_processing(data):
+  data2result = {}
+  with open(data) as f:
+    lines = f.readlines()
+    for line in lines:
+      line1 = line.strip('\n').split('\t')
+      net_name = line1[0]
+      data2result[net_name] = line1[1: ]
   
   return data2result
 
@@ -43,21 +55,10 @@ def delta_calculation(net_name, topology, simulation, theory, advanced_theory):
 
 
 def table_delta():
-  new_index = {}
-  
-  with open('v2_new_score.txt', 'r') as f:
-    lines = f.readlines()
-    for line in lines:
-      line1 = line.strip('\n').split('\t')
-      for i, x in enumerate(line1[0]):
-        if x == 't':
-          ix = i
-      net_name = line1[0][:ix+1]
-      result = [line1[0][ix+1:]] + line1[1:]
-      new_index[net_name] = result
-
-  undirected_data = data_read_handling('./v2_undirected_delta.txt')
-  directed_data = data_read_handling('./v2_directed_delta.txt')
+  undirected_data = topology_and_aucs_processing('./v3_undirected_delta.txt')
+  directed_data = topology_and_aucs_processing('./v3_directed_delta.txt')
+  undirected_dependency = dependency_processing('v4_undirected_dependency.txt')
+  directed_dependency = dependency_processing('v4_directed_dependency.txt')
 
   directed_num = 0
   undirected_num = 0
@@ -74,9 +75,9 @@ def table_delta():
       average_delta += d
       average_advanced_delta += ad
 
-      if key in new_index:
+      if key in undirected_dependency:
         undirected_num += 1
-        row = [key, 'undirected', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + new_index[key]
+        row = [key, 'undirected', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + undirected_dependency[key]
         f.write('\t'.join(row) + '\n')
 
       # cn_deltas = [deltas[i] for i in range(9, 27)]
@@ -91,13 +92,13 @@ def table_delta():
       average_delta += d
       average_advanced_delta += ad
 
-      if key in new_index:
+      if key in directed_dependency:
         directed_num += 1
-        row = [key, 'directed', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + new_index[key]
+        row = [key, 'directed', str(int(topology[0])), str(int(topology[1])), str(round(topology[2], 4)), str(round(topology[3], 4))] + [str(delta) for delta in deltas] + directed_dependency[key]
         f.write('\t'.join(row) + '\n')
       
-      if max(deltas) > 0.05:
-        print(key, topology, deltas)
+      # if max(deltas) > 0.05:
+      #   print(key, topology, deltas)
   
   print('data count: ', undirected_num, directed_num)
   total_num = undirected_num + directed_num
@@ -107,107 +108,108 @@ def table_delta():
 def correlation_analysis():
   undirected_deltas = [[] for i in range(delta_num)]
   directed_deltas = [[] for i in range(delta_num)]
-  all_deltas = [[] for i in range(delta_num)]
 
-  undirected_results = [[] for i in range(12)]
-  directed_results = [[] for i in range(12)]
-  all_results = [[] for i in range(12)]
+  undirected_results = [[] for i in range(5)]
+  directed_results = [[] for i in range(4)]
 
   with open('./table_delta.txt', 'r') as f:
     lines = f.readlines()
     for line in lines[1:]:
       line1 = line.strip('\n').split('\t')
-      # print(line1)
-      N, M, cc, r = [float(x) for x in line1[2: 6]]
-      delta = [float(x) for x in line1[6: 6 + delta_num]]
-      m1, m2, m3, m4, i1, i2 = [float(x) for x in line1[6 + delta_num:]]
-      
-      # kk = float(line1[4])
       if line1[5] == 'nan':
         continue
-      
+
+      N, M, cc, r = [float(x) for x in line1[2: 6]]
+      delta = [float(x) for x in line1[6: 6 + delta_num]]
+
       if line1[1] == 'undirected':
-        k = 2 * M / N
+        m1, m2, m3, m4 = [float(x) for x in line1[6 + delta_num:]]
         sparsity = M / N / (N-1) / 2
-        result = [N, M, cc, r, k, sparsity, m1, m2, m3, m4, i1, i2]
-        for i in range(12):
-          undirected_results[i].append(result[i])
-          all_results[i].append(result[i])
+        result = [sparsity, m1, m2, m3, m4]
+        for i, x in enumerate(result):
+          undirected_results[i].append(x)
         for i in range(delta_num):
           undirected_deltas[i].append(delta[i])
-          all_deltas[i].append(delta[i])
-
       else:
-        k = M / N
+        m1, m2, m3 = [float(x) for x in line1[6 + delta_num:]]
         sparsity = M / N / (N-1)
-        result = [N, M, cc, r, k, sparsity, m1, m2, m3, m4, i1, i2]
-        for i in range(12):
-          directed_results[i].append(result[i])
-          all_results[i].append(result[i])
+        result = [sparsity, m1, m2, m3]
+        for i, x in enumerate(result):
+          directed_results[i].append(x)
         for i in range(delta_num):
           directed_deltas[i].append(delta[i])
-          all_deltas[i].append(delta[i])
-      
-  rows = ['N', 'M', 'CC', 'r', 'k', 'sparsity', 'motif1', 'motif2', 'motif3', 'index1', 'index2']
+  
   methods = ['CN', 'PA', 'SDM', 'Salton', 'Jaccard', 'Sorensen', 'HPI', 'HDI', 'LHNI']
   all_p = [round(0.1 * x, 1) for x in range(1, 10)]
-  columns = [m + '_' + str(p) for m in methods for p in all_p]
+  colors = ["#4CAF50", "red", "hotpink", "#556B2F", "deepskyblue"]
+  markers = ["o", "v", ">", "D", "s"]
+  label_names = ['sparsity', 'm1', 'm2', 'm3', 'm4']
+  corrs = []
 
-  total_results = [undirected_results, directed_results, all_results]
-  total_deltas = [undirected_deltas, directed_deltas, all_deltas]
-  titles = ['undirected', 'directed', 'all']
-  
-  for ix in range(3):
-    results = total_results[ix]
-    deltas = total_deltas[ix]
-    # for method_name in ['pearson', 'kendall', 'spearman']:
-    for method_name in ['pearson']:
-
-      # optimal_error = []
-      # vanishing_error = []
-      errors = [[] for i in range(9)]
-
-      for i, x in enumerate(deltas):
-
-        x1 = pd.Series(x)
-        relationships = []
-        for j, y in enumerate(results[5: 9]):
-          y1 = pd.Series(y)
-          c = x1.corr(y1, method=method_name)
-          # slope, intercept,r_value, p_value, std_err = linregress(x1, y1)
-          relationships.append(c)
-        
-        # if i % 9 == 2:
-        #   optimal_error.append(relationships)
-        #   print('optimal:', x[:20])
-        # elif i % 9 == 8:
-        #   vanishing_error.append(relationships)
-        #   print('vanishing:', x[:20])
-
-        errors[i % 9].append(relationships)
+  for i, x in enumerate(undirected_deltas):
+    x1 = pd.Series(x)
+    relationships = []
+    for j, y in enumerate(undirected_results):
+      y1 = pd.Series(y)
+      c = x1.corr(y1, method='pearson')
+      relationships.append(c)
+    corrs.append(relationships)
       
-      for ip, p in enumerate(all_p):
-        plt.figure(figsize=(12, 12))
-        for im, m in enumerate(methods):
-          plt.subplot(3, 3, im + 1)
-          x = np.array(rows[5: 9])
-          y = np.array(errors[ip][im])
-          # print('optimal:', x, y)
-          plt.bar(x, y, color = ["#4CAF50","red","hotpink","#556B2F"])
-          plt.title(m)
-        # plt.show()
-        plt.savefig(titles[ix] + '_' + method_name + '_p=' + str(p) + '.pdf', bbox_inches='tight')
+  plt.figure(figsize=(12, 12))
+  for im, m in enumerate(methods):
+    plt.subplot(3, 3, im + 1)
+    x = np.array(all_p)
+    
+    for ixx in range(5):
+      y = np.array([corrs[im * 9 + ip][ixx] for ip, p in enumerate(all_p)])
+      plt.plot(x, y, linestyle="-", color=colors[ixx], marker=markers[ixx], label = label_names[ixx])
+    if im in [6, 7, 8]:
+      plt.xlabel('p')
+    if im in [0, 3, 6]:
+      plt.ylabel('r')
+    if im == 1:
+      plt.legend()
 
-    #     print('\t'.join([columns[i]] + [str(round(x, 4)) for x in relationships]))
-    # print('*' * 40)
+    plt.title(m)
+
+  plt.savefig('undirected_corr.pdf', bbox_inches='tight')
+
+  corrs = []
+  for i, x in enumerate(directed_deltas):
+    x1 = pd.Series(x)
+    relationships = []
+    for j, y in enumerate(directed_results):
+      y1 = pd.Series(y)
+      c = x1.corr(y1, method='pearson')
+      relationships.append(c)
+    corrs.append(relationships)
+      
+  plt.figure(figsize=(12, 12))
+  for im, m in enumerate(methods):
+    plt.subplot(3, 3, im + 1)
+    x = np.array(all_p)
+    
+    for ixx in range(4):
+      y = np.array([corrs[im * 9 + ip][ixx] for ip, p in enumerate(all_p)])
+      plt.plot(x, y, linestyle="-", color=colors[ixx], marker=markers[ixx], label = label_names[ixx])
+    if im in [6, 7, 8]:
+      plt.xlabel('p')
+    if im in [0, 3, 6]:
+      plt.ylabel('r')
+    if im == 1:
+      plt.legend()
+
+    plt.title(m)
+
+  plt.savefig('directed_corr.pdf', bbox_inches='tight')
 
 
 if __name__ == '__main__':
   delta_num = 81
-  error = 0.02
+  error = 0.01
 
   table_delta()
-  # correlation_analysis()
+  correlation_analysis()
   
 
       

@@ -1263,6 +1263,8 @@ def undirected_dependency_test(network):
   sampling_index = 0
   dependency_count_1 = 0
   dependency_count_2 = 0
+  dependency_count_3 = 0
+  dependency_count_4 = 0
 
   while sampling_index < THEORY_SAMPING_MAX:
     node1, node2 = ran.choice(all_nodes), ran.choice(all_nodes)
@@ -1270,26 +1272,44 @@ def undirected_dependency_test(network):
       continue
     sampling_index += 1
     node3, node4 = ran.choice(all_edges)
+    motif = 0
     
     if node1 == node3:
-      dependency_count_1 += 1
+      motif = 1
     elif node1 == node4:
-      dependency_count_1 += 1
+      motif = 1
     elif node2 == node3:
-      dependency_count_1 += 1
+      motif = 1
     elif node2 == node4:
-      dependency_count_1 += 1
+      motif = 1
     else:
+      connect = 0
       if network.has_edge(node1, node3):
+        motif = 2
+        connect += 1
+      if network.has_edge(node1, node4):
+        motif = 2
+        connect += 1
+      if network.has_edge(node2, node3):
+        motif = 2
+        connect += 1
+      if network.has_edge(node2, node4):
+        motif = 2
+        connect += 1
+    
+    if motif == 1:
+      dependency_count_1 += 1
+      c1 = nx.common_neighbors(network, node1, node2)
+      c2 = nx.common_neighbors(network, node3, node4)
+      if len(list(set(c1) & set(c2))) > 0:
         dependency_count_2 += 1
-      elif network.has_edge(node1, node4):
-        dependency_count_2 += 1
-      elif network.has_edge(node2, node3):
-        dependency_count_2 += 1
-      elif network.has_edge(node2, node4):
-        dependency_count_2 += 1
+
+    elif motif == 2:
+      dependency_count_3 += 1
+      if connect > 2:
+        dependency_count_4 += 1
   
-  return dependency_count_1 / THEORY_SAMPING_MAX, dependency_count_2 / THEORY_SAMPING_MAX
+  return dependency_count_1 / THEORY_SAMPING_MAX, dependency_count_2 / THEORY_SAMPING_MAX, dependency_count_3 / THEORY_SAMPING_MAX, dependency_count_4 / THEORY_SAMPING_MAX
 
 
 def directed_dependency_test(network):
@@ -1299,6 +1319,7 @@ def directed_dependency_test(network):
   sampling_index = 0
   dependency_count_1 = 0
   dependency_count_2 = 0
+  dependency_count_3 = 0
 
   while sampling_index < THEORY_SAMPING_MAX:
     node1, node2 = ran.choice(all_nodes), ran.choice(all_nodes)
@@ -1306,19 +1327,32 @@ def directed_dependency_test(network):
       continue
     sampling_index += 1
     node3, node4 = ran.choice(all_edges)
+    motif = 0
     
     if node1 == node3:
       dependency_count_1 += 1
+      motif = 1
     elif node1 == node4:
+      motif = 1
       if network.out_degree(node4) > 0:
         dependency_count_2 += 1
     elif node2 == node3:
+      motif = 1
       dependency_count_1 += 1
     elif node2 == node4:
+      motif = 1
       if network.out_degree(node4) > 0:
         dependency_count_2 += 1
+    
+    if motif == 1:
+      n1 = list(nx.neighbors(network, node1))
+      n2 = list(nx.neighbors(network, node2))
+      n3 = list(nx.neighbors(network, node3))
+      n4 = list(nx.neighbors(network, node4))
+      if len(list(set(n1) & set(n2) & set(n3) & set(n4))) > 0:
+        dependency_count_3 += 1
   
-  return dependency_count_1 / THEORY_SAMPING_MAX, dependency_count_2 / THEORY_SAMPING_MAX
+  return dependency_count_1 / THEORY_SAMPING_MAX, dependency_count_2 / THEORY_SAMPING_MAX, dependency_count_3 / THEORY_SAMPING_MAX
 
 
 def dependency_output(file_name, net_type):
@@ -1333,15 +1367,15 @@ def dependency_output(file_name, net_type):
     file_name = file_name[len(directed_document)+1:]
   
   if 'un' in net_type:
-    m1, m2 = undirected_dependency_test(G)
-    print(file_name, m1, m2, sep='\t')
+    m1, m2, m3, m4 = undirected_dependency_test(G)
+    print(file_name, m1, m2, m3, m4, sep='\t')
     with open(undirected_dependency_result, 'a') as f:
-      f.write('\t'.join([file_name, str(m1), str(m2)]) + '\n')
+      f.write('\t'.join([file_name, str(m1), str(m2), str(m3), str(m4)]) + '\n')
   else:
-    m1, m2 = directed_dependency_test(G)
-    print(file_name, m1, m2, sep='\t')
+    m1, m2, m3 = directed_dependency_test(G)
+    print(file_name, m1, m2, m3, sep='\t')
     with open(directed_dependency_result, 'a') as f:
-      f.write('\t'.join([file_name, str(m1), str(m2)]) + '\n')
+      f.write('\t'.join([file_name, str(m1), str(m2), str(m3)]) + '\n')
 
 
 def rand_ER(g1, connected):
@@ -1868,8 +1902,8 @@ if __name__ == '__main__':
   # set output files
   undirected_result = 'v3_undirected_delta.txt'
   directed_result = 'v3_directed_delta.txt'
-  undirected_dependency_result = 'v3_undirected_dependency.txt'
-  directed_dependency_result = 'v3_directed_dependency.txt'
+  undirected_dependency_result = 'v4_undirected_dependency.txt'
+  directed_dependency_result = 'v4_directed_dependency.txt'
 
   # set file locations of datasets we used 
   document1 = './dataset/newUndirected'
@@ -1896,6 +1930,7 @@ if __name__ == '__main__':
   # parallel(output, parameters[0], parameters[1])
 
   ## stage2: dependency test
+  
   # test in one data
   # dependency_output('./dataset/newUndirected/test.txt', 'undirected')
   # dependency_output('./dataset/newDirected/z76.txt', 'directed')
