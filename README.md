@@ -1,16 +1,10 @@
 #  Link Prediction Theoretical Framework
-In our paper, we introduce a new theoretical analysis method for general link prediction methods, in which the proposed local link prediction can be regarded as an approximation of classical link prediction. 
-Further more, we give an error computing method for the error between local link prediction and classical link prediction.
-In particular, we discussed nine local-topology-based link prediction algorithms based on the degree and the common neighbor.
-In these cases, theoretical analysis can be directed soved by random graph tools and/or percolaton tools (generating functions).
-Error analysis method is given by the distribution of higher order topology in original networks (a simple example can be found in Fig.1).
+We establish network predictability theory by mapping link prediction onto a spin-glass model, where network partitions correspond to spin configurations and predictability equals the system's average energy. Using the cavity method from statistical physics, we prove that global predictability decomposes into individual link contributions, enabling an efficient local sampling algorithm that reduces computational complexity from $O(M)$ to $O(M/N)$. We derive exact results for canonical network models: Erdős-Rényi networks exhibit universal predictability of 0.5 regardless of algorithm choice, establishing the random baseline, while structured networks show predictability controlled by their prior parameters. We introduce the predictability index (PI), which quantifies maximum achievable performance without information loss and accurately predicts algorithm performance under random division. Analysis of real networks validates our framework, revealing how degree heterogeneity and structural patterns govern predictability. This physics-based approach provides both theoretical insights into link prediction limits and practical tools for assessing network reconstruction potential, with implications for applications from biological network inference to social network analysis.
 
 ## Main code and results
-The datasets we used are generated from https://icon.colorado.edu/#!/networks. 
+The real network dataset we used can be downloaded from https://icon.colorado.edu/#!/networks. 
 We only provide two example networks here.
 
 ```
-# theory_and_classical_aucs(): Calculation of AUC and error bound in two LP processes
-# rewiring_classical_auc(): Calculation of AUC for classical LP in rewired networks
 python main.py
 ```
